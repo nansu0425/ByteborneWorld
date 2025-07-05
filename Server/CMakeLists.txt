@@ -3,10 +3,15 @@
 #
 
 # Add source to this project's executable.
-add_executable (Server "Main.cpp" )
+add_executable (Server "Main.cpp")
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET Server PROPERTY CXX_STANDARD 17)
-endif()
+# Set C++ standard
+set_property(TARGET Server PROPERTY CXX_STANDARD 17)
+set_property(TARGET Server PROPERTY CXX_STANDARD_REQUIRED ON)
+
+# Enable precompiled headers using CMake's built-in support
+target_precompile_headers(Server PRIVATE 
+	"${CMAKE_CURRENT_SOURCE_DIR}/Pch.h"
+)
 
 # TODO: Add tests and install targets if needed.
