@@ -1,4 +1,5 @@
 ﻿#include "Pch.h"
+#include "Session.h"
 
 int main()
 {
@@ -7,6 +8,8 @@ int main()
     SPDLOG_INFO("월드 서버 시작");
     SPDLOG_WARN("이것은 경고 메시지입니다.");
     SPDLOG_ERROR("이것은 오류 메시지입니다.");
+
+    net::SeesionPtr session = std::make_shared<net::Session>(1);
 
     core::AppContext::getInstance().cleanup();
 

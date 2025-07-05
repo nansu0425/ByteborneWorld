@@ -17,5 +17,5 @@ target_include_directories(WorldServer PRIVATE
 
 # Link libraries
 target_link_libraries(WorldServer PRIVATE
-  Core
+  Core Network
 )
