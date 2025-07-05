@@ -15,7 +15,7 @@ target_precompile_headers(Network PRIVATE
 
 # Link libraries
 target_link_libraries(Network PUBLIC
-  Core
+    Core
 )
 
 # Add include directories
