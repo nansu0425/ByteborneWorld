@@ -1,16 +1,15 @@
 ﻿#include "Pch.h"
 #include "Context/App.h"
-#include "Session.h"
+#include "Server.h"
 
 int main()
 {
     core::AppContext::getInstance().initialize();
 
-    SPDLOG_INFO("월드 서버 시작");
-    SPDLOG_WARN("이것은 경고 메시지입니다.");
-    SPDLOG_ERROR("이것은 오류 메시지입니다.");
+    WorldServer server;
+    server.run();
 
-    net::SeesionPtr session = std::make_shared<net::Session>(1);
+    server.join();
 
     core::AppContext::getInstance().cleanup();
 
