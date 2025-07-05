@@ -3,7 +3,8 @@ add_library(Network STATIC
     "Session.h" "Session.cpp"
     "Service.h" "Service.cpp"
     "Queue.h" "Queue.cpp"
-    "Event.h" )
+    "Event.h"
+)
 
 # Set C++ standard
 set_property(TARGET Network PROPERTY CXX_STANDARD 17)

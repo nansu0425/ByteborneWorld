@@ -7,8 +7,8 @@ namespace core
     public:
         static AppContext& getInstance()
         {
-            static AppContext instance;
-            return instance;
+            static AppContext s_instance;
+            return s_instance;
         }
 
         AppContext(const AppContext&) = delete;
