@@ -1,3 +1,6 @@
+# Find and link libraries
+find_package(spdlog CONFIG REQUIRED)
+
 # Add source to this static library.
 add_library(Core STATIC
     "Global.cpp"
@@ -11,6 +14,11 @@ set_property(TARGET Core PROPERTY CXX_STANDARD_REQUIRED ON)
 # Enable precompiled headers using CMake's built-in support
 target_precompile_headers(Core PRIVATE 
     "${CMAKE_CURRENT_SOURCE_DIR}/CorePch.h"
+)
+
+# Link libraries
+target_link_libraries(Core PUBLIC
+    spdlog::spdlog
 )
 
 # Add include directories

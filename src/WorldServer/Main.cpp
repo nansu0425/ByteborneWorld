@@ -2,7 +2,7 @@
 
 int main()
 {
-    core::Print();
+    core::testSpdlog();
     
     return 0;
 }

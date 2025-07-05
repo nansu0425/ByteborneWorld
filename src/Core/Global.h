@@ -2,5 +2,5 @@
 
 namespace core
 {
-    void Print();
+    void testSpdlog();
 }
