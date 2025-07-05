@@ -10,4 +10,12 @@ target_precompile_headers(WorldServer PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/Pch.h"
 )
 
-# TODO: Add tests and install targets if needed.
+# Add include directories
+target_include_directories(WorldServer PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
+# Link libraries
+target_link_libraries(WorldServer PRIVATE
+  Core
+)

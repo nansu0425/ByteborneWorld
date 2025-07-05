@@ -1,0 +1,19 @@
+# Add source to this static library.
+add_library(Core STATIC
+    "Global.cpp"
+    "Global.h"
+)
+
+# Set C++ standard
+set_property(TARGET Core PROPERTY CXX_STANDARD 17)
+set_property(TARGET Core PROPERTY CXX_STANDARD_REQUIRED ON)
+
+# Enable precompiled headers using CMake's built-in support
+target_precompile_headers(Core PRIVATE 
+    "${CMAKE_CURRENT_SOURCE_DIR}/CorePch.h"
+)
+
+# Add include directories
+target_include_directories(Core PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+)
