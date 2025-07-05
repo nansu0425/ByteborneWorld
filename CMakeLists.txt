@@ -12,4 +12,4 @@ endif()
 project ("AsioGameServer")
 
 # Include sub-projects.
-add_subdirectory ("Server")
+add_subdirectory ("src")
