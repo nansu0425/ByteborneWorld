@@ -17,7 +17,7 @@ public:
 
 private:
     void loop();
-    void ProcessSessionEvents();
+    void handleSessionEvents();
     void onRecevied(const net::SeesionPtr& session);
 
 private:

@@ -81,7 +81,7 @@ void WorldServer::loop()
     {
         auto start = std::chrono::steady_clock::now();
 
-        ProcessSessionEvents();
+        handleSessionEvents();
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -106,7 +106,7 @@ void WorldServer::loop()
     }
 }
 
-void WorldServer::ProcessSessionEvents()
+void WorldServer::handleSessionEvents()
 {
     while (!m_sessionEventQueue.isEmpty())
     {
