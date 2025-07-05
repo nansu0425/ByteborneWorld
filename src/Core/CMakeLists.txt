@@ -3,8 +3,8 @@ find_package(spdlog CONFIG REQUIRED)
 
 # Add source to this static library.
 add_library(Core STATIC
-    "Global.cpp"
-    "Global.h"
+    "Context.cpp"
+    "Context.h"
 )
 
 # Set C++ standard

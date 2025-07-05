@@ -1,8 +1,12 @@
-﻿// Standard C++ Library headers that are commonly used
+﻿
+#ifdef _WIN32
+#include <Windows.h>
+#endif // _WIN32
+
 #include <iostream>
 #include <string>
 #include <vector>
 
 #include <spdlog/spdlog.h>
 
-#include "Global.h"
+#include "Context.h"
