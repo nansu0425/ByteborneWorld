@@ -13,18 +13,18 @@ namespace net
         SPDLOG_INFO("새로운 세션이 생성되었습니다. 소켓: {}", m_socket.remote_endpoint().address().to_string());  
     }
 
-    void Session::receive()  
+    void Session::asyncReceive()  
     {  
         auto self = shared_from_this();
         asio::post(m_strand,
                    [self]()
                    {
                        // 읽기 작업을 시작
-                       self->doRead();
+                       self->asyncRead();
                    });  
     }
 
-    void Session::send(const std::vector<uint8_t>& data)  
+    void Session::asyncSend(const std::vector<uint8_t>& data)  
     {
         auto self = shared_from_this();
         asio::post(m_strand,
@@ -33,15 +33,15 @@ namespace net
                        bool writeInProgress = !self->m_sendQueue.empty();
                        self->m_sendQueue.push_back(data);
 
-                       // 쓰기 작업이 진행 중이지 않으면 doWrite 호출
+                       // 쓰기 작업이 진행 중이지 않으면 asyncWrite 호출
                        if (!writeInProgress)
                        {
-                           self->doWrite();
+                           self->asyncWrite();
                        }
                    });
     }
 
-    void Session::doRead()  
+    void Session::asyncRead()  
     {  
         auto self = shared_from_this();
         m_socket.async_read_some(asio::buffer(m_receiveBuffer),
@@ -69,7 +69,7 @@ namespace net
         }  
     }
 
-    void Session::doWrite()  
+    void Session::asyncWrite()  
     {
         // 쓰기 큐가 비어있으면 쓰기 작업을 중단
         if (m_sendQueue.empty())
@@ -95,7 +95,7 @@ namespace net
         {  
             SPDLOG_INFO("데이터를 {} 바이트 전송했습니다.", bytesWritten);  
             // 다음 데이터를 전송
-            doWrite();  
+            asyncWrite();  
         }  
         else  
         {  
@@ -107,7 +107,7 @@ namespace net
     {
         std::atomic<SessionId> s_nextSessionId = 1;
         auto session = std::make_shared<Session>(s_nextSessionId.fetch_add(1), std::move(socket), eventQueue);
-        session->receive();  // 세션이 생성되면 즉시 수신 시작
+        session->asyncReceive();  // 세션이 생성되면 즉시 수신 시작
 
         return session;
     }

@@ -13,10 +13,10 @@ namespace net
 
     void AcceptService::start()
     {
-        doAccept();
+        asyncAccept();
     }
 
-    void AcceptService::doAccept()
+    void AcceptService::asyncAccept()
     {
         auto self = shared_from_this();
         m_acceptor.async_accept([self](const asio::error_code& error, asio::ip::tcp::socket socket)
@@ -42,7 +42,7 @@ namespace net
             SPDLOG_ERROR("연결 수락 오류: {}", error.message());
         }
         // 다음 연결을 수락하기 위해 다시 호출
-        doAccept();
+        asyncAccept();
     }
 
     ConnectService::ConnectService(asio::io_context& io_context, const std::string& host, uint16_t port, SessionEventQueue& eventQueue)
@@ -56,10 +56,10 @@ namespace net
 
     void ConnectService::start()
     {
-        doResolve();
+        asyncResolve();
     }
 
-    void ConnectService::doResolve()
+    void ConnectService::asyncResolve()
     {
         auto self = shared_from_this();
         m_resolver.async_resolve(m_host, std::to_string(m_port),
@@ -75,7 +75,7 @@ namespace net
         {
             SPDLOG_INFO("호스트 {}:{}를 성공적으로 해석했습니다.", m_host, m_port);
             m_resolvedEndpoints = results;
-            doConnect();
+            asyncConnect();
         }
         else
         {
@@ -83,7 +83,7 @@ namespace net
         }
     }
 
-    void ConnectService::doConnect()
+    void ConnectService::asyncConnect()
     {
         auto self = shared_from_this();
         asio::async_connect(m_socket, m_resolvedEndpoints,

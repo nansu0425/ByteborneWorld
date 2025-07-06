@@ -15,7 +15,7 @@ namespace net
         void start();
 
     private:
-        void doAccept();
+        void asyncAccept();
         void onAccepted(const asio::error_code& error, asio::ip::tcp::socket socket);
 
     private:
@@ -33,9 +33,9 @@ namespace net
         void start();
 
     private:
-        void doResolve();
+        void asyncResolve();
         void onResolved(const asio::error_code& error, asio::ip::tcp::resolver::results_type results);
-        void doConnect();
+        void asyncConnect();
         void onConnected(const asio::error_code& error);
 
     private:

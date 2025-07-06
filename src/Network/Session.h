@@ -20,16 +20,16 @@ namespace net
     public:
         Session(SessionId sessionId, asio::ip::tcp::socket socket, SessionEventQueue& eventQueue);
 
-        void receive();
-        void send(const std::vector<uint8_t>& data);
+        void asyncReceive();
+        void asyncSend(const std::vector<uint8_t>& data);
 
         SessionId getSessionId() const { return m_sessionId; }
         const ReceiveBuffer& getReceiveBuffer() const { return m_receiveBuffer; }
 
     private:
-        void doRead();
+        void asyncRead();
         void onRead(const asio::error_code& error, size_t bytesRead);
-        void doWrite();
+        void asyncWrite();
         void onWritten(const asio::error_code& error, size_t bytesWritten);
 
     private:

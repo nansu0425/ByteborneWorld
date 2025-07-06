@@ -135,5 +135,5 @@ void WorldServer::onRecevied(const net::SeesionPtr& session)
     const char* message = reinterpret_cast<const char*>(buffer.data());
     SPDLOG_INFO("세션 {}에서 {} 바이트 수신: {}", session->getSessionId(), buffer.size(), message);
 
-    session->receive();  // 다음 데이터를 수신하도록 설정
+    session->asyncReceive();  // 다음 데이터를 수신하도록 설정
 }
