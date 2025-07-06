@@ -5,18 +5,18 @@
 
 namespace net
 {
-    AcceptService::AcceptService(asio::io_context& io_context, uint16_t port, SessionEventQueue& eventQueue)
+    ServerService::ServerService(asio::io_context& io_context, uint16_t port, SessionEventQueue& eventQueue)
         : m_ioContext(io_context)
         , m_acceptor(io_context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
         , m_eventQueue(eventQueue)
     {}
 
-    void AcceptService::start()
+    void ServerService::start()
     {
         asyncAccept();
     }
 
-    void AcceptService::asyncAccept()
+    void ServerService::asyncAccept()
     {
         auto self = shared_from_this();
         m_acceptor.async_accept([self](const asio::error_code& error, asio::ip::tcp::socket socket)
@@ -25,7 +25,7 @@ namespace net
                                 });
     }
 
-    void AcceptService::onAccepted(const asio::error_code& error, asio::ip::tcp::socket socket)
+    void ServerService::onAccepted(const asio::error_code& error, asio::ip::tcp::socket socket)
     {
         if (!error)
         {
@@ -45,7 +45,7 @@ namespace net
         asyncAccept();
     }
 
-    ConnectService::ConnectService(asio::io_context& io_context, const std::string& host, uint16_t port, SessionEventQueue& eventQueue)
+    ClientService::ClientService(asio::io_context& io_context, const std::string& host, uint16_t port, SessionEventQueue& eventQueue)
         : m_ioContext(io_context)
         , m_socket(io_context)
         , m_resolver(io_context)
@@ -54,12 +54,12 @@ namespace net
         , m_port(port)
     {}
 
-    void ConnectService::start()
+    void ClientService::start()
     {
         asyncResolve();
     }
 
-    void ConnectService::asyncResolve()
+    void ClientService::asyncResolve()
     {
         auto self = shared_from_this();
         m_resolver.async_resolve(m_host, std::to_string(m_port),
@@ -69,7 +69,7 @@ namespace net
                                  });
     }
 
-    void ConnectService::onResolved(const asio::error_code& error, asio::ip::tcp::resolver::results_type results)
+    void ClientService::onResolved(const asio::error_code& error, asio::ip::tcp::resolver::results_type results)
     {
         if (!error)
         {
@@ -83,7 +83,7 @@ namespace net
         }
     }
 
-    void ConnectService::asyncConnect()
+    void ClientService::asyncConnect()
     {
         auto self = shared_from_this();
         asio::async_connect(m_socket, m_resolvedEndpoints,
@@ -93,7 +93,7 @@ namespace net
                             });
     }
 
-    void ConnectService::onConnected(const asio::error_code& error)
+    void ClientService::onConnected(const asio::error_code& error)
     {
         if (!error)
         {

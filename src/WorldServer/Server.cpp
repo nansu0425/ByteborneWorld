@@ -9,8 +9,8 @@ WorldServer::WorldServer()
 void WorldServer::run()
 {
     m_running = true;
-    m_acceptService = std::make_shared<net::AcceptService>(m_ioContext, 12345, m_sessionEventQueue);
-    m_acceptService->start();
+    m_service = std::make_shared<net::ServerService>(m_ioContext, 12345, m_sessionEventQueue);
+    m_service->start();
 
     // IO 스레드 시작
     for (size_t i = 0; i < std::thread::hardware_concurrency(); ++i)

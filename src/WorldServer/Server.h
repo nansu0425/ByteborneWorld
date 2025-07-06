@@ -25,7 +25,7 @@ private:
     asio::executor_work_guard<asio::io_context::executor_type> m_ioWorkGuard;
     std::vector<std::thread> m_ioThreads;
     net::SessionEventQueue m_sessionEventQueue;
-    std::shared_ptr<net::AcceptService> m_acceptService;
+    std::shared_ptr<net::ServerService> m_service;
     net::SessionManager m_sessionManager;
     std::thread m_loopThread;
     bool m_running;

@@ -6,11 +6,11 @@ namespace net
 {
     class SessionEventQueue;
 
-    class AcceptService
-        : public std::enable_shared_from_this<AcceptService>
+    class ServerService
+        : public std::enable_shared_from_this<ServerService>
     {
     public:
-        AcceptService(asio::io_context& io_context, uint16_t port, SessionEventQueue& eventQueue);
+        ServerService(asio::io_context& io_context, uint16_t port, SessionEventQueue& eventQueue);
 
         void start();
 
@@ -24,11 +24,11 @@ namespace net
         SessionEventQueue& m_eventQueue;
     };
 
-    class ConnectService
-        : public std::enable_shared_from_this<ConnectService>
+    class ClientService
+        : public std::enable_shared_from_this<ClientService>
     {
     public:
-        ConnectService(asio::io_context& io_context, const std::string& host, uint16_t port, SessionEventQueue& eventQueue);
+        ClientService(asio::io_context& io_context, const std::string& host, uint16_t port, SessionEventQueue& eventQueue);
 
         void start();
 
