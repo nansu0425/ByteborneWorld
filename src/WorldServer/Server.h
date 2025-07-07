@@ -2,8 +2,8 @@
 
 #include <asio.hpp>
 #include <thread>
-#include "Queue.h"
-#include "Session.h"
+#include "Network/Queue.h"
+#include "Network/Session.h"
 
 namespace net
 {

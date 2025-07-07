@@ -12,7 +12,7 @@ set_property(TARGET Core PROPERTY CXX_STANDARD_REQUIRED ON)
 
 # Enable precompiled headers using CMake's built-in support
 target_precompile_headers(Core PRIVATE 
-    "${CMAKE_CURRENT_SOURCE_DIR}/CorePch.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Pch.h"
 )
 
 # Link libraries
@@ -22,5 +22,5 @@ target_link_libraries(Core PUBLIC
 
 # Add include directories
 target_include_directories(Core PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.."
 )

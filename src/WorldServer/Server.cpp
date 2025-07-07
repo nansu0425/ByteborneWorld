@@ -1,6 +1,6 @@
 ﻿#include "Pch.h"
 #include "Server.h"
-#include "Service.h"
+#include "Network/Service.h"
 
 WorldServer::WorldServer()
     : m_running(false)
