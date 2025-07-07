@@ -65,7 +65,7 @@ namespace net
         }  
         else  
         {  
-            SPDLOG_ERROR("읽기 오류: {}", error.message());  
+            SPDLOG_ERROR("읽기 오류: {}", error.value());  
         }  
     }
 
@@ -99,7 +99,7 @@ namespace net
         }  
         else  
         {  
-            SPDLOG_ERROR("쓰기 오류: {}", error.message());  
+            SPDLOG_ERROR("쓰기 오류: {}", error.value());  
         }  
     }
 

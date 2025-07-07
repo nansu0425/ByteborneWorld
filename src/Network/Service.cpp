@@ -96,7 +96,7 @@ namespace net
         }
         else
         {
-            SPDLOG_ERROR("연결 수락 오류: {}", error.message());
+            SPDLOG_ERROR("연결 수락 오류: {}", error.value());
         }
         // 다음 연결을 수락하기 위해 다시 호출
         asyncAccept();
@@ -150,7 +150,7 @@ namespace net
         }
         else
         {
-            SPDLOG_ERROR("호스트 해석 오류: {}", error.message());
+            SPDLOG_ERROR("호스트 해석 오류: {}", error.value());
         }
     }
 
@@ -177,7 +177,7 @@ namespace net
         }
         else
         {
-            SPDLOG_ERROR("연결 오류: {}", error.message());
+            SPDLOG_ERROR("연결 오류: {}", error.value());
         }
     }
 }
