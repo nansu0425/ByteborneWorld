@@ -3,13 +3,13 @@
 
 namespace net
 {
-    void SessionEventQueue::push(const SessionEventPtr& event)
+    void IoEventQueue::push(const IoEventPtr& event)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_queue.push_back(event);
     }
 
-    SessionEventPtr SessionEventQueue::pop()
+    IoEventPtr IoEventQueue::pop()
     {
         std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -23,7 +23,7 @@ namespace net
         return event;
     }
 
-    bool SessionEventQueue::isEmpty()
+    bool IoEventQueue::isEmpty()
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_queue.empty();

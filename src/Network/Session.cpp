@@ -4,7 +4,7 @@
 
 namespace net  
 {  
-    Session::Session(SessionId sessionId, asio::ip::tcp::socket socket, SessionEventQueue& eventQueue)
+    Session::Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
         : m_sessionId(sessionId)
         , m_socket(std::move(socket))  
         , m_strand(asio::make_strand(m_socket.get_executor()))
@@ -58,8 +58,8 @@ namespace net
         {  
             SPDLOG_INFO("데이터를 {} 바이트 읽었습니다.", bytesRead);
             // 수신 이벤트를 이벤트 큐에 추가
-            SessionEventPtr event = std::make_shared<SessionEvent>();
-            event->type = SessionEventType::Receive;
+            IoEventPtr event = std::make_shared<IoEvent>();
+            event->type = IoEventType::Receive;
             event->session = shared_from_this();
             m_eventQueue.push(event);
         }  
@@ -103,7 +103,7 @@ namespace net
         }  
     }
 
-    SeesionPtr SessionManager::createSession(asio::ip::tcp::socket socket, SessionEventQueue& eventQueue)
+    SeesionPtr SessionManager::createSession(asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
     {
         std::atomic<SessionId> s_nextSessionId = 1;
         auto session = std::make_shared<Session>(s_nextSessionId.fetch_add(1), std::move(socket), eventQueue);

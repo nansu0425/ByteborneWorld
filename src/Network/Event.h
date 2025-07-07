@@ -4,7 +4,7 @@
 
 namespace net
 {
-    enum class SessionEventType
+    enum class IoEventType
     {
         None,
         Connect,
@@ -12,11 +12,11 @@ namespace net
         Receive,
     };
 
-    struct SessionEvent
+    struct IoEvent
     {
-        SessionEventType type = SessionEventType::None;
         SeesionPtr session = nullptr;
+        IoEventType type = IoEventType::None;
     };
 
-    using SessionEventPtr = std::shared_ptr<SessionEvent>;
+    using IoEventPtr = std::shared_ptr<IoEvent>;
 }

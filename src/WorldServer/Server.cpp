@@ -1,34 +1,19 @@
 ﻿#include "Pch.h"
 #include "Server.h"
+#include "Service.h"
 
 WorldServer::WorldServer()
-    : m_ioWorkGuard(asio::make_work_guard(m_ioContext))
-    , m_running(false)
+    : m_running(false)
 {}
 
 void WorldServer::run()
 {
-    m_running = true;
-    m_service = std::make_shared<net::ServerService>(m_ioContext, 12345, m_sessionEventQueue);
+    // IO 서비스 생성 및 시작
+    m_service = std::make_shared<net::ServerService>(12345, std::thread::hardware_concurrency());
     m_service->start();
 
-    // IO 스레드 시작
-    for (size_t i = 0; i < std::thread::hardware_concurrency(); ++i)
-    {
-        m_ioThreads.emplace_back([this]()
-        {
-            try
-            {
-                m_ioContext.run();
-            }
-            catch (const std::exception& e)
-            {
-                SPDLOG_ERROR("IO 스레드 오류: {}", e.what());
-            }
-        });
-    }
-
     // 루프 스레드 시작
+    m_running = true;
     m_loopThread = std::thread([this]()
     {
         try
@@ -47,8 +32,7 @@ void WorldServer::run()
 void WorldServer::stop()
 {
     m_running = false;
-    m_ioWorkGuard.reset();
-    m_ioContext.stop();
+    m_service->stop();
 
     SPDLOG_INFO("월드 서버가 중지되었습니다.");
 }
@@ -61,14 +45,7 @@ void WorldServer::join()
         m_loopThread.join();
     }
 
-    // IO 스레드가 아직 실행 중이면 종료 대기
-    for (auto& thread : m_ioThreads)
-    {
-        if (thread.joinable())
-        {
-            thread.join();
-        }
-    }
+    m_service->join();
 }
 
 void WorldServer::loop()
@@ -81,7 +58,7 @@ void WorldServer::loop()
     {
         auto start = std::chrono::steady_clock::now();
 
-        handleSessionEvents();
+        processIoEvents();
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -106,22 +83,23 @@ void WorldServer::loop()
     }
 }
 
-void WorldServer::handleSessionEvents()
+void WorldServer::processIoEvents()
 {
-    while (!m_sessionEventQueue.isEmpty())
+    auto& ioEvnetQueue = m_service->getIoEventQueue();
+    while (!ioEvnetQueue.isEmpty())
     {
-        auto event = m_sessionEventQueue.pop();
+        auto event = ioEvnetQueue.pop();
         if (event)
         {
             switch (event->type)
             {
-                case net::SessionEventType::Connect:
+                case net::IoEventType::Connect:
                     m_sessionManager.addSession(event->session);
                     break;
-                case net::SessionEventType::Disconnect:
+                case net::IoEventType::Disconnect:
                     m_sessionManager.removeSession(event->session);
                     break;
-                case net::SessionEventType::Receive:
+                case net::IoEventType::Receive:
                     onRecevied(event->session);
                     break;
             }

@@ -6,15 +6,15 @@
 
 namespace net
 {
-    class SessionEventQueue
+    class IoEventQueue
     {
     public:
-        void push(const SessionEventPtr& event);
-        SessionEventPtr pop();
+        void push(const IoEventPtr& event);
+        IoEventPtr pop();
         bool isEmpty();
 
     private:
         std::mutex m_mutex;
-        std::deque<SessionEventPtr> m_queue;
+        std::deque<IoEventPtr> m_queue;
     };
 }

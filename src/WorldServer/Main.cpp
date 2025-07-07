@@ -8,7 +8,6 @@ int main()
 
     WorldServer server;
     server.run();
-
     server.join();
 
     core::AppContext::getInstance().cleanup();

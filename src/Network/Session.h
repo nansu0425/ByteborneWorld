@@ -9,7 +9,7 @@ namespace net
     using SeesionPtr = std::shared_ptr<class Session>;
     using SessionId = int64_t;
 
-    class SessionEventQueue;
+    class IoEventQueue;
 
     class Session
         : std::enable_shared_from_this<Session>
@@ -18,7 +18,7 @@ namespace net
         using ReceiveBuffer = std::array<uint8_t, 4096>;
 
     public:
-        Session(SessionId sessionId, asio::ip::tcp::socket socket, SessionEventQueue& eventQueue);
+        Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
 
         void asyncReceive();
         void asyncSend(const std::vector<uint8_t>& data);
@@ -38,13 +38,13 @@ namespace net
         asio::strand<asio::ip::tcp::socket::executor_type> m_strand;
         std::deque<std::vector<uint8_t>> m_sendQueue;
         ReceiveBuffer m_receiveBuffer = {};
-        SessionEventQueue& m_eventQueue;
+        IoEventQueue& m_eventQueue;
     };
 
     class SessionManager
     {
     public:
-        static SeesionPtr createSession(asio::ip::tcp::socket socket, SessionEventQueue& eventQueue);
+        static SeesionPtr createSession(asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
 
         void addSession(const SeesionPtr& session);
         void removeSession(SessionId sessionId);
