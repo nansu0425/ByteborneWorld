@@ -91,7 +91,7 @@ namespace net
             // 이벤트 큐에 연결 이벤트 추가
             IoEventPtr event = std::make_shared<IoEvent>();
             event->type = IoEventType::Connect;
-            event->session = SessionManager::createSession(std::move(socket), getIoEventQueue());
+            event->session = Session::createInstance(std::move(socket), getIoEventQueue());
             getIoEventQueue().push(event);
         }
         else
@@ -172,7 +172,7 @@ namespace net
             // 이벤트 큐에 연결 이벤트 추가
             IoEventPtr event = std::make_shared<IoEvent>();
             event->type = IoEventType::Connect;
-            event->session = SessionManager::createSession(std::move(m_socket), getIoEventQueue());
+            event->session = Session::createInstance(std::move(m_socket), getIoEventQueue());
             getIoEventQueue().push(event);
         }
         else

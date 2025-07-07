@@ -3,14 +3,15 @@
 #include "Queue.h"
 
 namespace net  
-{  
-    Session::Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
-        : m_sessionId(sessionId)
-        , m_socket(std::move(socket))  
-        , m_strand(asio::make_strand(m_socket.get_executor()))
-        , m_eventQueue(eventQueue)
-    {  
-        SPDLOG_INFO("새로운 세션이 생성되었습니다. 소켓: {}", m_socket.remote_endpoint().address().to_string());  
+{
+    SeesionPtr Session::createInstance(asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
+    {
+        std::atomic<SessionId> s_nextSessionId = 1;
+        // 세션 생성 후 수신 요청
+        Session* session = new Session(s_nextSessionId.fetch_add(1), std::move(socket), eventQueue);
+        session->asyncReceive();
+
+        return SeesionPtr(session);
     }
 
     void Session::asyncReceive()  
@@ -39,6 +40,15 @@ namespace net
                            self->asyncWrite();
                        }
                    });
+    }
+
+    Session::Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
+        : m_sessionId(sessionId)
+        , m_socket(std::move(socket))
+        , m_strand(asio::make_strand(m_socket.get_executor()))
+        , m_eventQueue(eventQueue)
+    {
+        SPDLOG_INFO("새로운 세션이 생성되었습니다. 소켓: {}", m_socket.remote_endpoint().address().to_string());
     }
 
     void Session::asyncRead()  
@@ -101,15 +111,6 @@ namespace net
         {  
             SPDLOG_ERROR("쓰기 오류: {}", error.value());  
         }  
-    }
-
-    SeesionPtr SessionManager::createSession(asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
-    {
-        std::atomic<SessionId> s_nextSessionId = 1;
-        auto session = std::make_shared<Session>(s_nextSessionId.fetch_add(1), std::move(socket), eventQueue);
-        session->asyncReceive();  // 세션이 생성되면 즉시 수신 시작
-
-        return session;
     }
 
     void SessionManager::addSession(const SeesionPtr& session)  

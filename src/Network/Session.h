@@ -2,7 +2,6 @@
 
 #include <asio.hpp>
 #include <deque>
-#include <atomic>
 
 namespace net
 {
@@ -18,7 +17,7 @@ namespace net
         using ReceiveBuffer = std::array<uint8_t, 4096>;
 
     public:
-        Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
+        static SeesionPtr createInstance(asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
 
         void asyncReceive();
         void asyncSend(const std::vector<uint8_t>& data);
@@ -27,6 +26,8 @@ namespace net
         const ReceiveBuffer& getReceiveBuffer() const { return m_receiveBuffer; }
 
     private:
+        Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
+
         void asyncRead();
         void onRead(const asio::error_code& error, size_t bytesRead);
         void asyncWrite();
@@ -44,8 +45,6 @@ namespace net
     class SessionManager
     {
     public:
-        static SeesionPtr createSession(asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
-
         void addSession(const SeesionPtr& session);
         void removeSession(SessionId sessionId);
         void removeSession(const SeesionPtr& session);
