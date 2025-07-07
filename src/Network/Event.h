@@ -14,7 +14,7 @@ namespace net
 
     struct IoEvent
     {
-        SeesionPtr session = nullptr;
+        SessionPtr session = nullptr;
         IoEventType type = IoEventType::None;
     };
 

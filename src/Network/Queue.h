@@ -10,6 +10,7 @@ namespace net
     {
     public:
         void push(const IoEventPtr& event);
+        void push(IoEventPtr&& event);
         IoEventPtr pop();
         bool isEmpty();
 

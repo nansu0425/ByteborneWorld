@@ -9,8 +9,8 @@ WorldServer::WorldServer()
 void WorldServer::run()
 {
     // IO 서비스 생성 및 시작
-    m_service = std::make_shared<net::ServerService>(12345, std::thread::hardware_concurrency(), m_ioEventQueue);
-    m_service->start();
+    m_serverIoService = net::ServerIoService::createInstance(12345, std::thread::hardware_concurrency(), m_ioEventQueue);
+    m_serverIoService->start();
 
     // 루프 스레드 시작
     m_running = true;
@@ -32,7 +32,7 @@ void WorldServer::run()
 void WorldServer::stop()
 {
     m_running = false;
-    m_service->stop();
+    m_serverIoService->stop();
 
     SPDLOG_INFO("월드 서버가 중지되었습니다.");
 }
@@ -45,7 +45,7 @@ void WorldServer::join()
         m_loopThread.join();
     }
 
-    m_service->join();
+    m_serverIoService->join();
 }
 
 void WorldServer::loop()
@@ -106,21 +106,22 @@ void WorldServer::processIoEvents()
     }
 }
 
-void WorldServer::handleConnectEvent(const net::SeesionPtr& session)
+void WorldServer::handleConnectEvent(const net::SessionPtr& session)
 {
     m_sessionManager.addSession(session);
 }
 
-void WorldServer::handleDisconnectEvent(const net::SeesionPtr & session)
+void WorldServer::handleDisconnectEvent(const net::SessionPtr & session)
 {
     m_sessionManager.removeSession(session);
 }
 
-void WorldServer::handleRecevieEvent(const net::SeesionPtr& session)
+void WorldServer::handleRecevieEvent(const net::SessionPtr& session)
 {
     const auto& buffer = session->getReceiveBuffer();
     const char* message = reinterpret_cast<const char*>(buffer.data());
     SPDLOG_INFO("세션 {}에서 {} 바이트 수신: {}", session->getSessionId(), buffer.size(), message);
 
-    session->asyncReceive();  // 다음 데이터를 수신하도록 설정
+    // 다음 수신 요청
+    session->asyncReceive();
 }

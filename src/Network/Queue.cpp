@@ -9,6 +9,12 @@ namespace net
         m_queue.push_back(event);
     }
 
+    void IoEventQueue::push(IoEventPtr&& event)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_queue.push_back(std::move(event));
+    }
+
     IoEventPtr IoEventQueue::pop()
     {
         std::lock_guard<std::mutex> lock(m_mutex);

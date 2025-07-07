@@ -4,40 +4,37 @@
 
 namespace net  
 {
-    SeesionPtr Session::createInstance(asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
+    SessionPtr Session::createInstance(asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
     {
         std::atomic<SessionId> s_nextSessionId = 1;
         // 세션 생성 후 수신 요청
-        Session* session = new Session(s_nextSessionId.fetch_add(1), std::move(socket), eventQueue);
+        SessionPtr session = SessionPtr(new Session(s_nextSessionId.fetch_add(1), std::move(socket), eventQueue));
         session->asyncReceive();
 
-        return SeesionPtr(session);
+        return session;
     }
 
     void Session::asyncReceive()  
-    {  
-        auto self = shared_from_this();
+    {
         asio::post(m_strand,
-                   [self]()
+                   [self = shared_from_this()]()
                    {
-                       // 읽기 작업을 시작
-                       self->asyncRead();
+                       self->asyncRead(self);
                    });  
     }
 
-    void Session::asyncSend(const std::vector<uint8_t>& data)  
+    void Session::asyncSend(std::vector<uint8_t> data)  
     {
-        auto self = shared_from_this();
         asio::post(m_strand,
-                   [self, data]()
+                   [self = shared_from_this(), data = std::move(data)]() mutable
                    {
                        bool writeInProgress = !self->m_sendQueue.empty();
-                       self->m_sendQueue.push_back(data);
+                       self->m_sendQueue.push_back(std::move(data));
 
-                       // 쓰기 작업이 진행 중이지 않으면 asyncWrite 호출
+                       // 쓰기 작업이 진행 중이지 않으면 쓰기 요청
                        if (!writeInProgress)
                        {
-                           self->asyncWrite();
+                           self->asyncWrite(self);
                        }
                    });
     }
@@ -51,18 +48,18 @@ namespace net
         SPDLOG_INFO("새로운 세션이 생성되었습니다. 소켓: {}", m_socket.remote_endpoint().address().to_string());
     }
 
-    void Session::asyncRead()  
-    {  
-        auto self = shared_from_this();
+    void Session::asyncRead(const SessionPtr& self)  
+    {
         m_socket.async_read_some(asio::buffer(m_receiveBuffer),
                                  asio::bind_executor(m_strand,
-                                                     [self](const asio::error_code& error, size_t bytesRead)
+                                                     [self = self]
+                                                     (const asio::error_code& error, size_t bytesRead)
                                                      {
-                                                         self->onRead(error, bytesRead);
+                                                         self->onRead(self, error, bytesRead);
                                                      }));
     }
 
-    void Session::onRead(const asio::error_code& error, size_t bytesRead)  
+    void Session::onRead(const SessionPtr& self, const asio::error_code& error, size_t bytesRead)
     {  
         if (!error)  
         {  
@@ -70,8 +67,8 @@ namespace net
             // 수신 이벤트를 이벤트 큐에 추가
             IoEventPtr event = std::make_shared<IoEvent>();
             event->type = IoEventType::Receive;
-            event->session = shared_from_this();
-            m_eventQueue.push(event);
+            event->session = self;
+            m_eventQueue.push(std::move(event));
         }  
         else  
         {  
@@ -79,33 +76,32 @@ namespace net
         }  
     }
 
-    void Session::asyncWrite()  
+    void Session::asyncWrite(const SessionPtr& self)
     {
-        // 쓰기 큐가 비어있으면 쓰기 작업을 중단
-        if (m_sendQueue.empty())
-        {
-            return;
-        }
-        auto data = std::move(m_sendQueue.front());  
-        m_sendQueue.pop_front();
-
-        auto self = shared_from_this();
         asio::async_write(m_socket,
-                          asio::buffer(data),
+                          asio::buffer(m_sendQueue.front()),
                           asio::bind_executor(m_strand,
-                                              [self](const asio::error_code& error, size_t bytesWritten)
+                                              [self = self]
+                                              (const asio::error_code& error, size_t bytesWritten)
                                               {
-                                                  self->onWritten(error, bytesWritten);
+                                                  self->onWritten(self, error, bytesWritten);
                                               }));  
     }
 
-    void Session::onWritten(const asio::error_code& error, size_t bytesWritten)
-    {  
+    void Session::onWritten(const SessionPtr& self, const asio::error_code& error, size_t bytesWritten)
+    {
+        // 전송한 데이터를 큐에서 제거
+        m_sendQueue.pop_front();
+
         if (!error)  
         {  
-            SPDLOG_INFO("데이터를 {} 바이트 전송했습니다.", bytesWritten);  
-            // 다음 데이터를 전송
-            asyncWrite();  
+            SPDLOG_INFO("데이터를 {} 바이트 전송했습니다.", bytesWritten);
+
+            // 큐에 남아있는 데이터가 있다면 다음 쓰기 요청
+            if (!m_sendQueue.empty())  
+            {  
+                asyncWrite(self);
+            }
         }  
         else  
         {  
@@ -113,7 +109,7 @@ namespace net
         }  
     }
 
-    void SessionManager::addSession(const SeesionPtr& session)  
+    void SessionManager::addSession(const SessionPtr& session)  
     {  
         m_sessions[session->getSessionId()] = session;
     }
@@ -123,12 +119,12 @@ namespace net
         m_sessions.erase(sessionId);  
     }
 
-    void SessionManager::removeSession(const SeesionPtr& session)  
+    void SessionManager::removeSession(const SessionPtr& session)  
     {  
         m_sessions.erase(session->getSessionId());  
     }
 
-    SeesionPtr SessionManager::findSession(SessionId sessionId) const  
+    SessionPtr SessionManager::findSession(SessionId sessionId) const  
     {  
         auto it = m_sessions.find(sessionId);  
         if (it != m_sessions.end())  

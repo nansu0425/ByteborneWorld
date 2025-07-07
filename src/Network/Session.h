@@ -5,7 +5,7 @@
 
 namespace net
 {
-    using SeesionPtr = std::shared_ptr<class Session>;
+    using SessionPtr = std::shared_ptr<class Session>;
     using SessionId = int64_t;
 
     class IoEventQueue;
@@ -17,10 +17,10 @@ namespace net
         using ReceiveBuffer = std::array<uint8_t, 4096>;
 
     public:
-        static SeesionPtr createInstance(asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
+        static SessionPtr createInstance(asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
 
         void asyncReceive();
-        void asyncSend(const std::vector<uint8_t>& data);
+        void asyncSend(std::vector<uint8_t> data);
 
         SessionId getSessionId() const { return m_sessionId; }
         const ReceiveBuffer& getReceiveBuffer() const { return m_receiveBuffer; }
@@ -28,10 +28,10 @@ namespace net
     private:
         Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
 
-        void asyncRead();
-        void onRead(const asio::error_code& error, size_t bytesRead);
-        void asyncWrite();
-        void onWritten(const asio::error_code& error, size_t bytesWritten);
+        void asyncRead(const SessionPtr& self);
+        void onRead(const SessionPtr& self, const asio::error_code& error, size_t bytesRead);
+        void asyncWrite(const SessionPtr& self);
+        void onWritten(const SessionPtr& self, const asio::error_code& error, size_t bytesWritten);
 
     private:
         SessionId m_sessionId = 0;
@@ -45,12 +45,12 @@ namespace net
     class SessionManager
     {
     public:
-        void addSession(const SeesionPtr& session);
+        void addSession(const SessionPtr& session);
         void removeSession(SessionId sessionId);
-        void removeSession(const SeesionPtr& session);
-        SeesionPtr findSession(SessionId sessionId) const;
+        void removeSession(const SessionPtr& session);
+        SessionPtr findSession(SessionId sessionId) const;
 
     private:
-        std::unordered_map<SessionId, SeesionPtr> m_sessions;
+        std::unordered_map<SessionId, SessionPtr> m_sessions;
     };
 }

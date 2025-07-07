@@ -34,43 +34,53 @@ namespace net
         net::IoEventQueue& m_ioEventQueue;
     };
 
-    class ServerService
+    using ServerIoServicePtr = std::shared_ptr<class ServerIoService>;
+
+    class ServerIoService
         : public IoService
     {
     public:
-        ServerService(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+        static ServerIoServicePtr createInstance(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
 
         virtual void start() override;
         virtual void stop() override;
         virtual void join() override;
 
-        std::shared_ptr<ServerService> getInstance() { return std::static_pointer_cast<ServerService>(shared_from_this()); }
+        ServerIoServicePtr getInstance() { return std::static_pointer_cast<ServerIoService>(shared_from_this()); }
 
     private:
-        void asyncAccept();
-        void onAccepted(const asio::error_code& error, asio::ip::tcp::socket socket);
+        ServerIoService(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+
+    private:
+        void asyncAccept(const ServerIoServicePtr& self);
+        void onAccepted(const ServerIoServicePtr& self, const asio::error_code& error, asio::ip::tcp::socket socket);
 
     private:
         asio::ip::tcp::acceptor m_acceptor;
     };
 
-    class ClientService
+    using ClientIoServicePtr = std::shared_ptr<class ClientIoService>;
+
+    class ClientIoService
         : public IoService
     {
     public:
-        ClientService(const std::string& host, uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+        static ClientIoServicePtr createInstance(const std::string& host, uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
 
         virtual void start() override;
         virtual void stop() override;
         virtual void join() override;
 
-        std::shared_ptr<ClientService> getInstance() { return std::static_pointer_cast<ClientService>(shared_from_this()); }
+        ClientIoServicePtr getInstance() { return std::static_pointer_cast<ClientIoService>(shared_from_this()); }
 
     private:
-        void asyncResolve();
-        void onResolved(const asio::error_code& error, asio::ip::tcp::resolver::results_type results);
-        void asyncConnect();
-        void onConnected(const asio::error_code& error);
+        ClientIoService(const std::string& host, uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+
+    private:
+        void asyncResolve(const ClientIoServicePtr& self);
+        void onResolved(const ClientIoServicePtr& self, const asio::error_code& error, asio::ip::tcp::resolver::results_type results);
+        void asyncConnect(const ClientIoServicePtr& self);
+        void onConnected(const ClientIoServicePtr& self, const asio::error_code& error);
 
     private:
         asio::ip::tcp::socket m_socket;
