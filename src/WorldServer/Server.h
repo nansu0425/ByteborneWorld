@@ -21,11 +21,15 @@ public:
 
 private:
     void loop();
+
     void processIoEvents();
-    void onRecevied(const net::SeesionPtr& session);
+    void handleConnectEvent(const net::SeesionPtr& session);
+    void handleDisconnectEvent(const net::SeesionPtr& session);
+    void handleRecevieEvent(const net::SeesionPtr& session);
 
 private:
     std::shared_ptr<net::ServerService> m_service;
+    net::IoEventQueue m_ioEventQueue;
     net::SessionManager m_sessionManager;
     std::thread m_loopThread;
     bool m_running;

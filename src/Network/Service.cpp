@@ -5,10 +5,11 @@
 
 namespace net
 {
-    IoService::IoService(size_t ioThreadCount)
+    IoService::IoService(size_t ioThreadCount, IoEventQueue& ioEventQueue)
         : m_ioContext()
         , m_ioWorkGuard(asio::make_work_guard(m_ioContext))
         , m_ioThreadCount(ioThreadCount)
+        , m_ioEventQueue(ioEventQueue)
     {}
 
     void IoService::startIoThreads()
@@ -48,8 +49,8 @@ namespace net
         m_ioThreads.clear();
     }
 
-    ServerService::ServerService(uint16_t port, size_t ioThreadCount)
-        : IoService(ioThreadCount)
+    ServerService::ServerService(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue)
+        : IoService(ioThreadCount, ioEventQueue)
         , m_acceptor(getIoContext(), asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
     {}
 
@@ -101,8 +102,8 @@ namespace net
         asyncAccept();
     }
 
-    ClientService::ClientService(const std::string& host, uint16_t port, size_t ioThreadCount)
-        : IoService(ioThreadCount)
+    ClientService::ClientService(const std::string& host, uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue)
+        : IoService(ioThreadCount, ioEventQueue)
         , m_socket(getIoContext())
         , m_resolver(getIoContext())
         , m_host(host)

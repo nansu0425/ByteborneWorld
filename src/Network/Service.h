@@ -11,7 +11,7 @@ namespace net
         : public std::enable_shared_from_this<IoService>
     {
     public:
-        IoService(size_t ioThreadCount);
+        IoService(size_t ioThreadCount, IoEventQueue& ioEventQueue);
         virtual ~IoService() = default;
 
         virtual void start() = 0;
@@ -31,14 +31,14 @@ namespace net
         asio::executor_work_guard<asio::io_context::executor_type> m_ioWorkGuard;
         std::vector<std::thread> m_ioThreads;
         size_t m_ioThreadCount;
-        net::IoEventQueue m_ioEventQueue;
+        net::IoEventQueue& m_ioEventQueue;
     };
 
     class ServerService
         : public IoService
     {
     public:
-        ServerService(uint16_t port, size_t ioThreadCount);
+        ServerService(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
 
         virtual void start() override;
         virtual void stop() override;
@@ -58,7 +58,7 @@ namespace net
         : public IoService
     {
     public:
-        ClientService(const std::string& host, uint16_t port, size_t ioThreadCount);
+        ClientService(const std::string& host, uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
 
         virtual void start() override;
         virtual void stop() override;

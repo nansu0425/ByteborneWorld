@@ -9,7 +9,7 @@ WorldServer::WorldServer()
 void WorldServer::run()
 {
     // IO 서비스 생성 및 시작
-    m_service = std::make_shared<net::ServerService>(12345, std::thread::hardware_concurrency());
+    m_service = std::make_shared<net::ServerService>(12345, std::thread::hardware_concurrency(), m_ioEventQueue);
     m_service->start();
 
     // 루프 스레드 시작
@@ -85,29 +85,38 @@ void WorldServer::loop()
 
 void WorldServer::processIoEvents()
 {
-    auto& ioEvnetQueue = m_service->getIoEventQueue();
-    while (!ioEvnetQueue.isEmpty())
+    while (!m_ioEventQueue.isEmpty())
     {
-        auto event = ioEvnetQueue.pop();
+        auto event = m_ioEventQueue.pop();
         if (event)
         {
             switch (event->type)
             {
                 case net::IoEventType::Connect:
-                    m_sessionManager.addSession(event->session);
+                    handleConnectEvent(event->session);
                     break;
                 case net::IoEventType::Disconnect:
-                    m_sessionManager.removeSession(event->session);
+                    handleDisconnectEvent(event->session);
                     break;
                 case net::IoEventType::Receive:
-                    onRecevied(event->session);
+                    handleRecevieEvent(event->session);
                     break;
             }
         }
     }
 }
 
-void WorldServer::onRecevied(const net::SeesionPtr& session)
+void WorldServer::handleConnectEvent(const net::SeesionPtr& session)
+{
+    m_sessionManager.addSession(session);
+}
+
+void WorldServer::handleDisconnectEvent(const net::SeesionPtr & session)
+{
+    m_sessionManager.removeSession(session);
+}
+
+void WorldServer::handleRecevieEvent(const net::SeesionPtr& session)
 {
     const auto& buffer = session->getReceiveBuffer();
     const char* message = reinterpret_cast<const char*>(buffer.data());
