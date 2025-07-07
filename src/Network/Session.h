@@ -28,10 +28,10 @@ namespace net
     private:
         Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
 
-        void asyncRead(const SessionPtr& self);
-        void onRead(const SessionPtr& self, const asio::error_code& error, size_t bytesRead);
-        void asyncWrite(const SessionPtr& self);
-        void onWritten(const SessionPtr& self, const asio::error_code& error, size_t bytesWritten);
+        void asyncRead();
+        void onRead(const asio::error_code& error, size_t bytesRead);
+        void asyncWrite();
+        void onWritten(const asio::error_code& error, size_t bytesWritten);
 
     private:
         SessionId m_sessionId = 0;

@@ -19,7 +19,7 @@ namespace net
         asio::post(m_strand,
                    [self = shared_from_this()]()
                    {
-                       self->asyncRead(self);
+                       self->asyncRead();
                    });  
     }
 
@@ -34,7 +34,7 @@ namespace net
                        // 쓰기 작업이 진행 중이지 않으면 쓰기 요청
                        if (!writeInProgress)
                        {
-                           self->asyncWrite(self);
+                           self->asyncWrite();
                        }
                    });
     }
@@ -48,18 +48,18 @@ namespace net
         SPDLOG_INFO("새로운 세션이 생성되었습니다. 소켓: {}", m_socket.remote_endpoint().address().to_string());
     }
 
-    void Session::asyncRead(const SessionPtr& self)  
+    void Session::asyncRead()  
     {
         m_socket.async_read_some(asio::buffer(m_receiveBuffer),
                                  asio::bind_executor(m_strand,
-                                                     [self = self]
+                                                     [self = shared_from_this()]
                                                      (const asio::error_code& error, size_t bytesRead)
                                                      {
-                                                         self->onRead(self, error, bytesRead);
+                                                         self->onRead(error, bytesRead);
                                                      }));
     }
 
-    void Session::onRead(const SessionPtr& self, const asio::error_code& error, size_t bytesRead)
+    void Session::onRead(const asio::error_code& error, size_t bytesRead)
     {  
         if (!error)  
         {  
@@ -67,7 +67,7 @@ namespace net
             // 수신 이벤트를 이벤트 큐에 추가
             IoEventPtr event = std::make_shared<IoEvent>();
             event->type = IoEventType::Receive;
-            event->session = self;
+            event->session = shared_from_this();
             m_eventQueue.push(std::move(event));
         }  
         else  
@@ -76,19 +76,19 @@ namespace net
         }  
     }
 
-    void Session::asyncWrite(const SessionPtr& self)
+    void Session::asyncWrite()
     {
         asio::async_write(m_socket,
                           asio::buffer(m_sendQueue.front()),
                           asio::bind_executor(m_strand,
-                                              [self = self]
+                                              [self = shared_from_this()]
                                               (const asio::error_code& error, size_t bytesWritten)
                                               {
-                                                  self->onWritten(self, error, bytesWritten);
+                                                  self->onWritten(error, bytesWritten);
                                               }));  
     }
 
-    void Session::onWritten(const SessionPtr& self, const asio::error_code& error, size_t bytesWritten)
+    void Session::onWritten(const asio::error_code& error, size_t bytesWritten)
     {
         // 전송한 데이터를 큐에서 제거
         m_sendQueue.pop_front();
@@ -100,7 +100,7 @@ namespace net
             // 큐에 남아있는 데이터가 있다면 다음 쓰기 요청
             if (!m_sendQueue.empty())  
             {  
-                asyncWrite(self);
+                asyncWrite();
             }
         }  
         else  

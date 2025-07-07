@@ -52,8 +52,8 @@ namespace net
         ServerIoService(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
 
     private:
-        void asyncAccept(const ServerIoServicePtr& self);
-        void onAccepted(const ServerIoServicePtr& self, const asio::error_code& error, asio::ip::tcp::socket socket);
+        void asyncAccept();
+        void onAccepted(const asio::error_code& error, asio::ip::tcp::socket socket);
 
     private:
         asio::ip::tcp::acceptor m_acceptor;
@@ -77,10 +77,10 @@ namespace net
         ClientIoService(const std::string& host, uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
 
     private:
-        void asyncResolve(const ClientIoServicePtr& self);
-        void onResolved(const ClientIoServicePtr& self, const asio::error_code& error, asio::ip::tcp::resolver::results_type results);
-        void asyncConnect(const ClientIoServicePtr& self);
-        void onConnected(const ClientIoServicePtr& self, const asio::error_code& error);
+        void asyncResolve();
+        void onResolved(const asio::error_code& error, asio::ip::tcp::resolver::results_type results);
+        void asyncConnect();
+        void onConnected(const asio::error_code& error);
 
     private:
         asio::ip::tcp::socket m_socket;

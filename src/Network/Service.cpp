@@ -56,7 +56,7 @@ namespace net
     void ServerIoService::start()
     {
         startIoThreads();
-        asyncAccept(getInstance());
+        asyncAccept();
         SPDLOG_INFO("서버 서비스가 시작되었습니다. 포트: {}", m_acceptor.local_endpoint().port());
     }
 
@@ -78,15 +78,15 @@ namespace net
         , m_acceptor(getIoContext(), asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
     {}
 
-    void ServerIoService::asyncAccept(const ServerIoServicePtr& self)
+    void ServerIoService::asyncAccept()
     {
-        m_acceptor.async_accept([self = self](const asio::error_code& error, asio::ip::tcp::socket socket)
+        m_acceptor.async_accept([self = getInstance()](const asio::error_code& error, asio::ip::tcp::socket socket)
                                 {
-                                    self->onAccepted(self, error, std::move(socket));
+                                    self->onAccepted(error, std::move(socket));
                                 });
     }
 
-    void ServerIoService::onAccepted(const ServerIoServicePtr& self, const asio::error_code& error, asio::ip::tcp::socket socket)
+    void ServerIoService::onAccepted(const asio::error_code& error, asio::ip::tcp::socket socket)
     {
         if (!error)
         {
@@ -101,8 +101,9 @@ namespace net
         {
             SPDLOG_ERROR("연결 수락 오류: {}", error.value());
         }
+
         // 다음 연결을 수락하기 위해 다시 호출
-        asyncAccept(self);
+        asyncAccept();
     }
 
     ClientIoServicePtr ClientIoService::createInstance(const std::string& host, uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue)
@@ -113,7 +114,7 @@ namespace net
     void ClientIoService::start()
     {
         startIoThreads();
-        asyncResolve(getInstance());
+        asyncResolve();
         SPDLOG_INFO("클라이언트 서비스가 시작되었습니다. 호스트: {}, 포트: {}", m_host, m_port);
     }
 
@@ -138,22 +139,22 @@ namespace net
         , m_port(port)
     {}
 
-    void ClientIoService::asyncResolve(const ClientIoServicePtr& self)
+    void ClientIoService::asyncResolve()
     {
         m_resolver.async_resolve(m_host, std::to_string(m_port),
-                                 [self = self](const asio::error_code& error, asio::ip::tcp::resolver::results_type results)
+                                 [self = getInstance()](const asio::error_code& error, asio::ip::tcp::resolver::results_type results)
                                  {
-                                     self->onResolved(self, error, results);
+                                     self->onResolved(error, results);
                                  });
     }
 
-    void ClientIoService::onResolved(const ClientIoServicePtr& self, const asio::error_code& error, asio::ip::tcp::resolver::results_type results)
+    void ClientIoService::onResolved(const asio::error_code& error, asio::ip::tcp::resolver::results_type results)
     {
         if (!error)
         {
             SPDLOG_INFO("호스트 {}:{}를 성공적으로 해석했습니다.", m_host, m_port);
             m_resolvedEndpoints = results;
-            asyncConnect(self);
+            asyncConnect();
         }
         else
         {
@@ -161,16 +162,16 @@ namespace net
         }
     }
 
-    void ClientIoService::asyncConnect(const ClientIoServicePtr& self)
+    void ClientIoService::asyncConnect()
     {
         asio::async_connect(m_socket, m_resolvedEndpoints,
-                            [self = self](const asio::error_code& error, const asio::ip::tcp::endpoint&)
+                            [self = getInstance()](const asio::error_code& error, const asio::ip::tcp::endpoint&)
                             {
-                                self->onConnected(self, error);
+                                self->onConnected(error);
                             });
     }
 
-    void ClientIoService::onConnected(const ClientIoServicePtr& self, const asio::error_code& error)
+    void ClientIoService::onConnected(const asio::error_code& error)
     {
         if (!error)
         {
