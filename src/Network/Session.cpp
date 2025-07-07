@@ -39,6 +39,7 @@ namespace net
                    });
     }
 
+
     Session::Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
         : m_sessionId(sessionId)
         , m_socket(std::move(socket))
@@ -50,6 +51,12 @@ namespace net
 
     void Session::asyncRead()  
     {
+        if (m_closed)  
+        {  
+            SPDLOG_WARN("세션이 이미 종료되었습니다. 세션 ID: {}", m_sessionId);
+            return;  
+        }
+
         m_socket.async_read_some(asio::buffer(m_receiveBuffer),
                                  asio::bind_executor(m_strand,
                                                      [self = shared_from_this()]
@@ -60,24 +67,28 @@ namespace net
     }
 
     void Session::onRead(const asio::error_code& error, size_t bytesRead)
-    {  
-        if (!error)  
+    {
+        if (error)  
         {  
-            SPDLOG_INFO("데이터를 {} 바이트 읽었습니다.", bytesRead);
-            // 수신 이벤트를 이벤트 큐에 추가
-            IoEventPtr event = std::make_shared<IoEvent>();
-            event->type = IoEventType::Receive;
-            event->session = shared_from_this();
-            m_eventQueue.push(std::move(event));
-        }  
-        else  
-        {  
-            SPDLOG_ERROR("읽기 오류: {}", error.value());  
-        }  
+            handleError(error);  
+            return;  
+        }
+
+        SPDLOG_INFO("데이터를 {} 바이트 읽었습니다.", bytesRead);
+
+        // 수신 이벤트를 이벤트 큐에 추가
+        IoEventPtr event = std::make_shared<IoEvent>(IoEvent{shared_from_this(), IoEventType::Receive});
+        m_eventQueue.push(std::move(event));
     }
 
     void Session::asyncWrite()
     {
+        if (m_closed)  
+        {  
+            SPDLOG_WARN("세션이 이미 종료되었습니다. 세션 ID: {}", m_sessionId);
+            return;  
+        }
+
         asio::async_write(m_socket,
                           asio::buffer(m_sendQueue.front()),
                           asio::bind_executor(m_strand,
@@ -90,22 +101,91 @@ namespace net
 
     void Session::onWritten(const asio::error_code& error, size_t bytesWritten)
     {
-        // 전송한 데이터를 큐에서 제거
+        if (error)  
+        {  
+            handleError(error);  
+            return;  
+        }
+
+        SPDLOG_INFO("데이터를 {} 바이트 전송했습니다.", bytesWritten);
+        
         m_sendQueue.pop_front();
-
-        if (!error)  
-        {  
-            SPDLOG_INFO("데이터를 {} 바이트 전송했습니다.", bytesWritten);
-
+        if (!m_sendQueue.empty())
+        {
             // 큐에 남아있는 데이터가 있다면 다음 쓰기 요청
-            if (!m_sendQueue.empty())  
+            asyncWrite();
+        }
+    }
+
+    void Session::handleError(const asio::error_code& error)  
+    {
+        switch (error.value())
+        {
+        case asio::error::operation_aborted:
+            SPDLOG_WARN("작업이 중단되었습니다. 세션 ID: {}", m_sessionId);
+            break;
+        case asio::error::connection_reset:
+            SPDLOG_ERROR("연결이 재설정되었습니다. 세션 ID: {}", m_sessionId);
+            close();
+            break;
+        case asio::error::connection_aborted:
+            SPDLOG_ERROR("연결이 중단되었습니다. 세션 ID: {}", m_sessionId);
+            close();
+            break;
+        case asio::error::timed_out:
+            SPDLOG_ERROR("연결이 시간 초과되었습니다. 세션 ID: {}", m_sessionId);
+            close();
+            break;
+        case asio::error::not_connected:
+            SPDLOG_ERROR("소켓이 연결되지 않았습니다. 세션 ID: {}", m_sessionId);
+            assert(false);
+            break;
+        case asio::error::eof:
+            SPDLOG_INFO("세션이 EOF를 수신했습니다. 세션 ID: {}", m_sessionId);
+            close();
+            break;
+        case asio::error::bad_descriptor:
+            SPDLOG_ERROR("잘못된 디스크립터입니다. 세션 ID: {}", m_sessionId);
+            assert(false);
+            break;
+        default:
+            SPDLOG_ERROR("알 수 없는 오류가 발생했습니다. 오류 코드: {}, 세션 ID: {}", error.value(), m_sessionId);
+            assert(false);
+            break;
+        }
+    }
+
+    void Session::close()  
+    {
+        if (!m_closed)  
+        {
+            asio::error_code error;
+
+            // 모든 비동기 작업을 취소
+            m_socket.cancel(error);
+            if (error)  
             {  
-                asyncWrite();
+                handleError(error);
             }
-        }  
-        else  
-        {  
-            SPDLOG_ERROR("쓰기 오류: {}", error.value());  
+
+            // 송수신 기능 중지
+            m_socket.shutdown(asio::ip::tcp::socket::shutdown_both, error);
+            if (error)  
+            {
+                handleError(error);
+            }
+
+            // 소켓 닫기
+            m_socket.close(error);
+            if (error)  
+            {  
+                handleError(error);
+            }
+            m_closed = true;
+
+            SPDLOG_INFO("세션이 종료되었습니다. 세션 ID: {}", m_sessionId);
+            // 이벤트 큐에 세션 종료 이벤트 추가
+            m_eventQueue.push(std::make_shared<IoEvent>(IoEvent{shared_from_this(), IoEventType::Disconnect}));
         }  
     }
 

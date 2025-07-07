@@ -33,9 +33,13 @@ namespace net
         void asyncWrite();
         void onWritten(const asio::error_code& error, size_t bytesWritten);
 
+        void handleError(const asio::error_code& error);
+        void close();
+
     private:
         SessionId m_sessionId = 0;
         asio::ip::tcp::socket m_socket;
+        bool m_closed = false;
         asio::strand<asio::ip::tcp::socket::executor_type> m_strand;
         std::deque<std::vector<uint8_t>> m_sendQueue;
         ReceiveBuffer m_receiveBuffer = {};
