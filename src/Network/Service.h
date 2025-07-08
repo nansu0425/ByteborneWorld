@@ -21,6 +21,8 @@ namespace net
         virtual void stop() = 0;
         virtual void waitForStop() = 0;
 
+        IoThreadPool& getIoThreadPool() { return m_ioThreadPool; }
+
     protected:
         virtual void handleError(const asio::error_code& error) = 0;
 

@@ -9,10 +9,15 @@ int main()
     WorldServer server;
     server.start();
 
-    // q 입력 시 서버 중지
     char input;
-    while ((input = ::getchar()) && (input != 'q'))
-    {}
+    while (std::cin >> input)
+    {
+        if (input == 'q' || input == 'Q')
+        {
+            break;
+        }
+    }
+
     server.stop();
     server.watiForStop();
 

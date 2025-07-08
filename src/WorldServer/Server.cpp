@@ -14,6 +14,20 @@ void WorldServer::start()
     m_serverIoService = net::ServerIoService::createInstance(m_ioEventQueue, 12345);
     m_serverIoService->start();
 
+    // 중지 시그널 핸들러 등록
+    m_serverIoService->getIoThreadPool().registerStopSignalHandler(
+        [this](const asio::error_code& error, int signalNumber)
+        {
+            if (!error)
+            {
+                stop();
+            }
+            else
+            {
+                SPDLOG_ERROR("[WorldServer] 중지 시그널 처리 오류: {}", error.value());
+            }
+        });
+
     // 메인 루프 실행
     m_mainLoopThread = std::thread([this]()
                                    {
