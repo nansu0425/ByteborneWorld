@@ -14,8 +14,7 @@ int main()
     while ((input = ::getchar()) && (input != 'q'))
     {}
     server.stop();
-
-    server.join();
+    server.watiForStop();
 
     core::AppContext::getInstance().cleanup();
 

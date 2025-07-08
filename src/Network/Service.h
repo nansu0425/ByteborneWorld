@@ -8,12 +8,7 @@ namespace net
 {
     class SessionManager;
 
-    enum class IoServiceState
-    {
-        Stopped,
-        Running,
-        Stopping,
-    };
+    using SignalHandler = std::function<void(const asio::error_code&, int)>;
 
     class IoService
         : public std::enable_shared_from_this<IoService>
@@ -24,13 +19,13 @@ namespace net
 
         virtual void start(size_t ioThreadCount) = 0;
         virtual void stop() = 0;
-        virtual void join() = 0;
+        virtual void waitForStop() = 0;
 
     protected:
         virtual void handleError(const asio::error_code& error) = 0;
 
     protected:
-        std::atomic<IoServiceState> m_state;
+        std::atomic<bool> m_running;
         IoThreadPool m_ioThreadPool;
         IoEventQueue& m_ioEventQueue;
     };
@@ -41,14 +36,14 @@ namespace net
         : public IoService
     {
     public:
-        ServerIoService(uint16_t port, IoEventQueue& ioEventQueue);
+        ServerIoService(IoEventQueue& ioEventQueue, uint16_t port);
 
-        static ServerIoServicePtr createInstance(uint16_t port, IoEventQueue& ioEventQueue);
+        static ServerIoServicePtr createInstance(IoEventQueue& ioEventQueue, uint16_t port);
         ServerIoServicePtr getInstance() { return std::static_pointer_cast<ServerIoService>(shared_from_this()); }
 
         virtual void start(size_t ioThreadCount = std::thread::hardware_concurrency()) override;
         virtual void stop() override;
-        virtual void join() override;
+        virtual void waitForStop() override;
 
     private:
         void asyncAccept();
@@ -72,14 +67,14 @@ namespace net
         : public IoService
     {
     public:
-        ClientIoService(const ResolveTarget& resolveTarget, IoEventQueue& ioEventQueue);
+        ClientIoService(IoEventQueue& ioEventQueue, const ResolveTarget& resolveTarget);
 
-        static ClientIoServicePtr createInstance(const ResolveTarget& resolveTarget, IoEventQueue& ioEventQueue);
+        static ClientIoServicePtr createInstance(IoEventQueue& ioEventQueue, const ResolveTarget& resolveTarget);
         ClientIoServicePtr getInstance() { return std::static_pointer_cast<ClientIoService>(shared_from_this()); }
 
         virtual void start(size_t ioThreadCount = std::thread::hardware_concurrency()) override;
         virtual void stop() override;
-        virtual void join() override;
+        virtual void waitForStop() override;
 
     private:
         void asyncResolve();

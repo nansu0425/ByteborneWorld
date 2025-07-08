@@ -8,7 +8,7 @@ namespace net
         , m_wordGuard(asio::make_work_guard(m_context))
     {}
 
-    void IoThreadPool::start(size_t threadCount)
+    void IoThreadPool::run(size_t threadCount)
     {
         for (size_t i = 0; i < threadCount; ++i)
         {

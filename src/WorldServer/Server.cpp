@@ -8,56 +8,58 @@ WorldServer::WorldServer()
 
 void WorldServer::start()
 {
-    m_running = true;
+    m_running.store(true);
     SPDLOG_INFO("[WorldServer] 서버 시작");
 
-    m_serverIoService = net::ServerIoService::createInstance(12345, m_ioEventQueue);
+    m_serverIoService = net::ServerIoService::createInstance(m_ioEventQueue, 12345);
     m_serverIoService->start();
 
-    // 루프 스레드 시작
-    m_loopThread = std::thread([this]()
-    {
-        try
-        {
-            loop();
-        }
-        catch (const std::exception& e)
-        {
-            SPDLOG_ERROR("[WorldServer] 루프 스레드 오류: {}", e.what());
-        }
-    });
+    // 메인 루프 실행
+    m_mainLoopThread = std::thread([this]()
+                                   {
+                                       try
+                                       {
+                                           runMainLoop();
+                                       }
+                                       catch (const std::exception& e)
+                                       {
+                                           SPDLOG_ERROR("[WorldServer] 루프 스레드 오류: {}", e.what());
+                                       }
+                                   });
 
     
 }
 
 void WorldServer::stop()
 {
-    m_running = false;
-    SPDLOG_INFO("[WorldServer] 서버 중지");
+    if (m_running.exchange(false))
+    {
+        SPDLOG_INFO("[WorldServer] 서버 중지");
 
-    m_serverIoService->stop();    
+        m_serverIoService->stop();
+    }
 }
 
-void WorldServer::join()
+void WorldServer::watiForStop()
 {
-    // 루프 스레드가 아직 실행 중이면 종료 대기
-    if (m_loopThread.joinable())
+    // 메인 루프 스레드 종료 대기
+    if (m_mainLoopThread.joinable())
     {
-        m_loopThread.join();
+        m_mainLoopThread.join();
     }
 
-    m_serverIoService->join();
+    m_serverIoService->waitForStop();
 
     SPDLOG_INFO("[WorldServer] 서버 종료");
 }
 
-void WorldServer::loop()
+void WorldServer::runMainLoop()
 {
     constexpr auto TickInterval = std::chrono::milliseconds(50);
     auto lastTickCountTime = std::chrono::steady_clock::now();
     int32_t tickCount = 0;
 
-    while (m_running)
+    while (m_running.load())
     {
         auto start = std::chrono::steady_clock::now();
 

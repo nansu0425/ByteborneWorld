@@ -9,7 +9,7 @@ namespace net
     public:
         IoThreadPool();
 
-        void start(size_t threadCount = std::thread::hardware_concurrency());
+        void run(size_t threadCount = std::thread::hardware_concurrency());
         void stop();
         void join();
 

@@ -13,10 +13,10 @@ public:
 
     void start();
     void stop();
-    void join();
+    void watiForStop();
 
 private:
-    void loop();
+    void runMainLoop();
 
     void processIoEvents();
     void handleConnectEvent(const net::SessionPtr& session);
@@ -27,7 +27,7 @@ private:
     net::ServerIoServicePtr m_serverIoService;
     net::IoEventQueue m_ioEventQueue;
     net::SessionManager m_sessionManager;
-    std::thread m_loopThread;
-    bool m_running;
+    std::thread m_mainLoopThread;
+    std::atomic<bool> m_running;
     
 };

@@ -6,36 +6,32 @@
 namespace net
 {
     IoService::IoService(IoEventQueue& ioEventQueue)
-        : m_state(IoServiceState::Stopped)
+        : m_running(false)
         , m_ioEventQueue(ioEventQueue)
     {}
 
-    ServerIoService::ServerIoService(uint16_t port, IoEventQueue& ioEventQueue)
+    ServerIoService::ServerIoService(IoEventQueue& ioEventQueue, uint16_t port)
         : IoService(ioEventQueue)
         , m_acceptor(m_ioThreadPool.getContext(), asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
     {}
 
-    ServerIoServicePtr ServerIoService::createInstance(uint16_t port, IoEventQueue& ioEventQueue)
+    ServerIoServicePtr ServerIoService::createInstance(IoEventQueue& ioEventQueue, uint16_t port)
     {
-        return std::make_shared<ServerIoService>(port, ioEventQueue);
+        return std::make_shared<ServerIoService>(ioEventQueue, port);
     }
 
     void ServerIoService::start(size_t ioThreadCount)
     {
-        m_state.store(IoServiceState::Running);
-        auto port = m_acceptor.local_endpoint().port();
-        SPDLOG_INFO("[ServerIoService] 서비스 시작: {}", port);
+        m_running.store(true);
+        SPDLOG_INFO("[ServerIoService] 서비스 시작: {}", m_acceptor.local_endpoint().port());
         
-        m_ioThreadPool.start(ioThreadCount);
+        m_ioThreadPool.run(ioThreadCount);
         asyncAccept();
     }
 
     void ServerIoService::stop()
     {
-        assert(m_state.load() != IoServiceState::Stopped);
-        IoServiceState state = m_state.exchange(IoServiceState::Stopping);
-
-        if (state == IoServiceState::Running)
+        if (m_running.exchange(false))
         {
             SPDLOG_INFO("[ServerIoService] 서비스 중지");
 
@@ -45,17 +41,16 @@ namespace net
         }
     }
 
-    void ServerIoService::join()
+    void ServerIoService::waitForStop()
     {
         m_ioThreadPool.join();
 
-        m_state.store(IoServiceState::Stopped);
         SPDLOG_INFO("[ServerIoService] 서비스 종료");
     }
 
     void ServerIoService::asyncAccept()
     {
-        if (m_state.load() != IoServiceState::Running)
+        if (!m_running.load())
         {
             return;
         }
@@ -123,33 +118,30 @@ namespace net
         }
     }
 
-    ClientIoService::ClientIoService(const ResolveTarget& resolveTarget, IoEventQueue& ioEventQueue)
+    ClientIoService::ClientIoService(IoEventQueue& ioEventQueue, const ResolveTarget& resolveTarget)
         : IoService(ioEventQueue)
         , m_socket(m_ioThreadPool.getContext())
         , m_resolver(m_ioThreadPool.getContext())
         , m_resolveTarget(resolveTarget)
     {}
 
-    ClientIoServicePtr ClientIoService::createInstance(const ResolveTarget& resolveTarget, IoEventQueue& ioEventQueue)
+    ClientIoServicePtr ClientIoService::createInstance(IoEventQueue& ioEventQueue, const ResolveTarget& resolveTarget)
     {
-        return std::make_shared<ClientIoService>(resolveTarget, ioEventQueue);
+        return std::make_shared<ClientIoService>(ioEventQueue, resolveTarget);
     }
 
     void ClientIoService::start(size_t ioThreadCount)
     {
-        m_state.store(IoServiceState::Running);
+        m_running.store(true);
         SPDLOG_INFO("[ClientIoService] 서비스 시작");
         
-        m_ioThreadPool.start(ioThreadCount);
+        m_ioThreadPool.run(ioThreadCount);
         asyncResolve();
     }
 
     void ClientIoService::stop()
     {
-        assert(m_state.load() != IoServiceState::Stopped);
-        IoServiceState state = m_state.exchange(IoServiceState::Stopping);
-
-        if (state == IoServiceState::Running)
+        if (m_running.exchange(false))
         {
             SPDLOG_INFO("[ClientIoService] 서비스 중지");
 
@@ -160,17 +152,16 @@ namespace net
         }
     }
 
-    void ClientIoService::join()
+    void ClientIoService::waitForStop()
     {
         m_ioThreadPool.join();
 
-        m_state.store(IoServiceState::Stopped);
         SPDLOG_INFO("[ClientIoService] 서비스 종료");
     }
 
     void ClientIoService::asyncResolve()
     {
-        if (m_state.load() != IoServiceState::Running)
+        if (!m_running.load())
         {
             return;
         }
@@ -204,7 +195,7 @@ namespace net
 
     void ClientIoService::asyncConnect()
     {
-        if (m_state.load() != IoServiceState::Running)
+        if (!m_running.load())
         {
             return;
         }
