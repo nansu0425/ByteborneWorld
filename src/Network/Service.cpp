@@ -5,67 +5,28 @@
 
 namespace net
 {
-    IoService::IoService(size_t ioThreadCount, IoEventQueue& ioEventQueue)
+    IoService::IoService(IoEventQueue& ioEventQueue)
         : m_state(IoServiceState::Stopped)
-        , m_ioContext()
-        , m_ioWorkGuard(asio::make_work_guard(m_ioContext))
-        , m_ioThreadCount(ioThreadCount)
         , m_ioEventQueue(ioEventQueue)
     {}
 
-    void IoService::startIoThreads()
-    {
-        for (size_t i = 0; i < m_ioThreadCount; ++i)
-        {
-            m_ioThreads.emplace_back([self = shared_from_this()]()
-                                     {
-                                         try
-                                         {
-                                             self->m_ioContext.run();
-                                         }
-                                         catch (const std::exception& e)
-                                         {
-                                             SPDLOG_ERROR("[IoService] IO 스레드 오류: {}", e.what());
-                                         }
-                                     });
-        }
-    }
-
-    void IoService::stopIoThreads()
-    {
-        m_ioWorkGuard.reset();
-        m_ioContext.stop();
-    }
-
-    void IoService::joinIoThreads()
-    {
-        for (auto& thread : m_ioThreads)
-        {
-            if (thread.joinable())
-            {
-                thread.join();
-            }
-        }
-        m_ioThreads.clear();
-    }
-
-    ServerIoService::ServerIoService(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue)
-        : IoService(ioThreadCount, ioEventQueue)
-        , m_acceptor(getIoContext(), asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
+    ServerIoService::ServerIoService(uint16_t port, IoEventQueue& ioEventQueue)
+        : IoService(ioEventQueue)
+        , m_acceptor(m_ioThreadPool.getContext(), asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
     {}
 
-    ServerIoServicePtr ServerIoService::createInstance(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue)
+    ServerIoServicePtr ServerIoService::createInstance(uint16_t port, IoEventQueue& ioEventQueue)
     {
-        return std::make_shared<ServerIoService>(port, ioThreadCount, ioEventQueue);
+        return std::make_shared<ServerIoService>(port, ioEventQueue);
     }
 
-    void ServerIoService::start()
+    void ServerIoService::start(size_t ioThreadCount)
     {
         m_state.store(IoServiceState::Running);
         auto port = m_acceptor.local_endpoint().port();
         SPDLOG_INFO("[ServerIoService] 서비스 시작: {}", port);
         
-        startIoThreads();
+        m_ioThreadPool.start(ioThreadCount);
         asyncAccept();
     }
 
@@ -80,13 +41,13 @@ namespace net
 
             m_acceptor.cancel();
             m_acceptor.close();
-            stopIoThreads();
+            m_ioThreadPool.stop();
         }
     }
 
     void ServerIoService::join()
     {
-        joinIoThreads();
+        m_ioThreadPool.join();
 
         m_state.store(IoServiceState::Stopped);
         SPDLOG_INFO("[ServerIoService] 서비스 종료");
@@ -115,8 +76,8 @@ namespace net
             // 이벤트 큐에 연결 이벤트 추가
             IoEventPtr event = std::make_shared<IoEvent>();
             event->type = IoEventType::Connect;
-            event->session = Session::createInstance(std::move(socket), getIoEventQueue());
-            getIoEventQueue().push(std::move(event));
+            event->session = Session::createInstance(std::move(socket), m_ioEventQueue);
+            m_ioEventQueue.push(std::move(event));
         }
         else
         {
@@ -162,24 +123,24 @@ namespace net
         }
     }
 
-    ClientIoService::ClientIoService(const ResolveTarget& resolveTarget, size_t ioThreadCount, IoEventQueue& ioEventQueue)
-        : IoService(ioThreadCount, ioEventQueue)
-        , m_socket(getIoContext())
-        , m_resolver(getIoContext())
+    ClientIoService::ClientIoService(const ResolveTarget& resolveTarget, IoEventQueue& ioEventQueue)
+        : IoService(ioEventQueue)
+        , m_socket(m_ioThreadPool.getContext())
+        , m_resolver(m_ioThreadPool.getContext())
         , m_resolveTarget(resolveTarget)
     {}
 
-    ClientIoServicePtr ClientIoService::createInstance(const ResolveTarget& resolveTarget, size_t ioThreadCount, IoEventQueue& ioEventQueue)
+    ClientIoServicePtr ClientIoService::createInstance(const ResolveTarget& resolveTarget, IoEventQueue& ioEventQueue)
     {
-        return std::make_shared<ClientIoService>(resolveTarget, ioThreadCount, ioEventQueue);
+        return std::make_shared<ClientIoService>(resolveTarget, ioEventQueue);
     }
 
-    void ClientIoService::start()
+    void ClientIoService::start(size_t ioThreadCount)
     {
         m_state.store(IoServiceState::Running);
         SPDLOG_INFO("[ClientIoService] 서비스 시작");
         
-        startIoThreads();
+        m_ioThreadPool.start(ioThreadCount);
         asyncResolve();
     }
 
@@ -195,13 +156,13 @@ namespace net
             m_resolver.cancel();
             m_socket.cancel();
             m_socket.close();
-            stopIoThreads();
+            m_ioThreadPool.stop();
         }
     }
 
     void ClientIoService::join()
     {
-        joinIoThreads();
+        m_ioThreadPool.join();
 
         m_state.store(IoServiceState::Stopped);
         SPDLOG_INFO("[ClientIoService] 서비스 종료");
@@ -264,8 +225,8 @@ namespace net
             // 이벤트 큐에 연결 이벤트 추가
             IoEventPtr event = std::make_shared<IoEvent>();
             event->type = IoEventType::Connect;
-            event->session = Session::createInstance(std::move(m_socket), getIoEventQueue());
-            getIoEventQueue().push(std::move(event));
+            event->session = Session::createInstance(std::move(m_socket), m_ioEventQueue);
+            m_ioEventQueue.push(std::move(event));
         }
         else
         {

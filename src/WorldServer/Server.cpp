@@ -11,7 +11,7 @@ void WorldServer::start()
     m_running = true;
     SPDLOG_INFO("[WorldServer] 서버 시작");
 
-    m_serverIoService = net::ServerIoService::createInstance(12345, std::thread::hardware_concurrency(), m_ioEventQueue);
+    m_serverIoService = net::ServerIoService::createInstance(12345, m_ioEventQueue);
     m_serverIoService->start();
 
     // 루프 스레드 시작

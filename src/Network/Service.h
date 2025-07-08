@@ -2,6 +2,7 @@
 
 #include <asio.hpp>
 #include "Queue.h"
+#include "Thread.h"
 
 namespace net
 {
@@ -18,28 +19,20 @@ namespace net
         : public std::enable_shared_from_this<IoService>
     {
     public:
-        IoService(size_t ioThreadCount, IoEventQueue& ioEventQueue);
+        IoService(IoEventQueue& ioEventQueue);
         virtual ~IoService() = default;
 
-        virtual void start() = 0;
+        virtual void start(size_t ioThreadCount) = 0;
         virtual void stop() = 0;
         virtual void join() = 0;
 
-        asio::io_context& getIoContext() { return m_ioContext; }
-        net::IoEventQueue& getIoEventQueue() { return m_ioEventQueue; }
-
     protected:
-        void startIoThreads();
-        void stopIoThreads();
-        void joinIoThreads();
+        virtual void handleError(const asio::error_code& error) = 0;
 
     protected:
         std::atomic<IoServiceState> m_state;
-        asio::io_context m_ioContext;
-        asio::executor_work_guard<asio::io_context::executor_type> m_ioWorkGuard;
-        std::vector<std::thread> m_ioThreads;
-        size_t m_ioThreadCount;
-        net::IoEventQueue& m_ioEventQueue;
+        IoThreadPool m_ioThreadPool;
+        IoEventQueue& m_ioEventQueue;
     };
 
     using ServerIoServicePtr = std::shared_ptr<class ServerIoService>;
@@ -48,21 +41,20 @@ namespace net
         : public IoService
     {
     public:
-        ServerIoService(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+        ServerIoService(uint16_t port, IoEventQueue& ioEventQueue);
 
-        static ServerIoServicePtr createInstance(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+        static ServerIoServicePtr createInstance(uint16_t port, IoEventQueue& ioEventQueue);
+        ServerIoServicePtr getInstance() { return std::static_pointer_cast<ServerIoService>(shared_from_this()); }
 
-        virtual void start() override;
+        virtual void start(size_t ioThreadCount = std::thread::hardware_concurrency()) override;
         virtual void stop() override;
         virtual void join() override;
-
-        ServerIoServicePtr getInstance() { return std::static_pointer_cast<ServerIoService>(shared_from_this()); }
 
     private:
         void asyncAccept();
         void onAccepted(const asio::error_code& error, asio::ip::tcp::socket socket);
 
-        void handleError(const asio::error_code& error);
+        virtual void handleError(const asio::error_code& error) override;
 
     private:
         asio::ip::tcp::acceptor m_acceptor;
@@ -80,15 +72,14 @@ namespace net
         : public IoService
     {
     public:
-        ClientIoService(const ResolveTarget& resolveTarget, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+        ClientIoService(const ResolveTarget& resolveTarget, IoEventQueue& ioEventQueue);
 
-        static ClientIoServicePtr createInstance(const ResolveTarget& resolveTarget, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+        static ClientIoServicePtr createInstance(const ResolveTarget& resolveTarget, IoEventQueue& ioEventQueue);
+        ClientIoServicePtr getInstance() { return std::static_pointer_cast<ClientIoService>(shared_from_this()); }
 
-        virtual void start() override;
+        virtual void start(size_t ioThreadCount) override;
         virtual void stop() override;
         virtual void join() override;
-
-        ClientIoServicePtr getInstance() { return std::static_pointer_cast<ClientIoService>(shared_from_this()); }
 
     private:
         void asyncResolve();
@@ -96,7 +87,7 @@ namespace net
         void asyncConnect();
         void onConnected(const asio::error_code& error);
 
-        void handleError(const asio::error_code& error);
+        virtual void handleError(const asio::error_code& error) override;
 
     private:
         asio::ip::tcp::socket m_socket;

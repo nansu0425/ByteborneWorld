@@ -4,6 +4,7 @@ add_library(Network STATIC
     "Service.h" "Service.cpp"
     "Queue.h" "Queue.cpp"
     "Event.h"
+    "Thread.h" "Thread.cpp"
 )
 
 # Set C++ standard
