@@ -7,7 +7,14 @@ int main()
     core::AppContext::getInstance().initialize();
 
     WorldServer server;
-    server.run();
+    server.start();
+
+    // q 입력 시 서버 중지
+    char input;
+    while ((input = ::getchar()) && (input != 'q'))
+    {}
+    server.stop();
+
     server.join();
 
     core::AppContext::getInstance().cleanup();

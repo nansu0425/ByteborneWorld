@@ -7,6 +7,13 @@ namespace net
 {
     class SessionManager;
 
+    enum class IoServiceState
+    {
+        Stopped,
+        Running,
+        Stopping,
+    };
+
     class IoService
         : public std::enable_shared_from_this<IoService>
     {
@@ -26,7 +33,8 @@ namespace net
         void stopIoThreads();
         void joinIoThreads();
 
-    private:
+    protected:
+        std::atomic<IoServiceState> m_state;
         asio::io_context m_ioContext;
         asio::executor_work_guard<asio::io_context::executor_type> m_ioWorkGuard;
         std::vector<std::thread> m_ioThreads;
@@ -40,6 +48,8 @@ namespace net
         : public IoService
     {
     public:
+        ServerIoService(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+
         static ServerIoServicePtr createInstance(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
 
         virtual void start() override;
@@ -49,11 +59,10 @@ namespace net
         ServerIoServicePtr getInstance() { return std::static_pointer_cast<ServerIoService>(shared_from_this()); }
 
     private:
-        ServerIoService(uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
-
-    private:
         void asyncAccept();
         void onAccepted(const asio::error_code& error, asio::ip::tcp::socket socket);
+
+        void handleError(const asio::error_code& error);
 
     private:
         asio::ip::tcp::acceptor m_acceptor;
@@ -61,11 +70,19 @@ namespace net
 
     using ClientIoServicePtr = std::shared_ptr<class ClientIoService>;
 
+    struct ResolveTarget
+    {
+        std::string host;
+        std::string service;
+    };
+
     class ClientIoService
         : public IoService
     {
     public:
-        static ClientIoServicePtr createInstance(const std::string& host, uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+        ClientIoService(const ResolveTarget& resolveTarget, size_t ioThreadCount, IoEventQueue& ioEventQueue);
+
+        static ClientIoServicePtr createInstance(const ResolveTarget& resolveTarget, size_t ioThreadCount, IoEventQueue& ioEventQueue);
 
         virtual void start() override;
         virtual void stop() override;
@@ -74,19 +91,17 @@ namespace net
         ClientIoServicePtr getInstance() { return std::static_pointer_cast<ClientIoService>(shared_from_this()); }
 
     private:
-        ClientIoService(const std::string& host, uint16_t port, size_t ioThreadCount, IoEventQueue& ioEventQueue);
-
-    private:
         void asyncResolve();
-        void onResolved(const asio::error_code& error, asio::ip::tcp::resolver::results_type results);
+        void onResolved(const asio::error_code& error, const asio::ip::tcp::resolver::results_type& results);
         void asyncConnect();
         void onConnected(const asio::error_code& error);
+
+        void handleError(const asio::error_code& error);
 
     private:
         asio::ip::tcp::socket m_socket;
         asio::ip::tcp::resolver m_resolver;
-        asio::ip::tcp::resolver::results_type m_resolvedEndpoints;
-        std::string m_host;
-        uint16_t m_port;
+        asio::ip::tcp::resolver::results_type m_resolveResults;
+        ResolveTarget m_resolveTarget;
     };
 }

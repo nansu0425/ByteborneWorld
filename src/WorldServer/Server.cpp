@@ -6,14 +6,15 @@ WorldServer::WorldServer()
     : m_running(false)
 {}
 
-void WorldServer::run()
+void WorldServer::start()
 {
-    // IO 서비스 생성 및 시작
+    m_running = true;
+    SPDLOG_INFO("[WorldServer] 서버 시작");
+
     m_serverIoService = net::ServerIoService::createInstance(12345, std::thread::hardware_concurrency(), m_ioEventQueue);
     m_serverIoService->start();
 
     // 루프 스레드 시작
-    m_running = true;
     m_loopThread = std::thread([this]()
     {
         try
@@ -22,19 +23,19 @@ void WorldServer::run()
         }
         catch (const std::exception& e)
         {
-            SPDLOG_ERROR("루프 스레드 오류: {}", e.what());
+            SPDLOG_ERROR("[WorldServer] 루프 스레드 오류: {}", e.what());
         }
     });
 
-    SPDLOG_INFO("월드 서버가 시작되었습니다.");
+    
 }
 
 void WorldServer::stop()
 {
     m_running = false;
-    m_serverIoService->stop();
+    SPDLOG_INFO("[WorldServer] 서버 중지");
 
-    SPDLOG_INFO("월드 서버가 중지되었습니다.");
+    m_serverIoService->stop();    
 }
 
 void WorldServer::join()
@@ -46,6 +47,8 @@ void WorldServer::join()
     }
 
     m_serverIoService->join();
+
+    SPDLOG_INFO("[WorldServer] 서버 종료");
 }
 
 void WorldServer::loop()
@@ -67,7 +70,7 @@ void WorldServer::loop()
         auto tickCountElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - lastTickCountTime);
         if (std::chrono::seconds(1) <= tickCountElapsed)
         {
-            SPDLOG_INFO("틱 카운트: {}", tickCount);
+            SPDLOG_INFO("[WorldServer] 틱 카운트: {}", tickCount);
             lastTickCountTime = end;
             tickCount = 0;
         }
@@ -118,9 +121,7 @@ void WorldServer::handleDisconnectEvent(const net::SessionPtr & session)
 
 void WorldServer::handleRecevieEvent(const net::SessionPtr& session)
 {
-    const auto& buffer = session->getReceiveBuffer();
-    const char* message = reinterpret_cast<const char*>(buffer.data());
-    SPDLOG_INFO("세션 {}에서 {} 바이트 수신: {}", session->getSessionId(), buffer.size(), message);
+    // TODO: 수신 데이터 처리 로직 추가
 
     // 다음 수신 요청
     session->asyncReceive();

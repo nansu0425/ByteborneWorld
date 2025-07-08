@@ -11,7 +11,7 @@ class WorldServer
 public:
     WorldServer();
 
-    void run();
+    void start();
     void stop();
     void join();
 

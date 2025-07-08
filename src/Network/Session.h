@@ -2,6 +2,7 @@
 
 #include <asio.hpp>
 #include <deque>
+#include <memory>
 
 namespace net
 {
@@ -17,6 +18,9 @@ namespace net
         using ReceiveBuffer = std::array<uint8_t, 4096>;
 
     public:
+        Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
+        ~Session();
+
         static SessionPtr createInstance(asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
 
         void asyncReceive();
@@ -26,8 +30,6 @@ namespace net
         const ReceiveBuffer& getReceiveBuffer() const { return m_receiveBuffer; }
 
     private:
-        Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
-
         void asyncRead();
         void onRead(const asio::error_code& error, size_t bytesRead);
         void asyncWrite();
