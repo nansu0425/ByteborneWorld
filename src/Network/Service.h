@@ -77,7 +77,7 @@ namespace net
         static ClientIoServicePtr createInstance(const ResolveTarget& resolveTarget, IoEventQueue& ioEventQueue);
         ClientIoServicePtr getInstance() { return std::static_pointer_cast<ClientIoService>(shared_from_this()); }
 
-        virtual void start(size_t ioThreadCount) override;
+        virtual void start(size_t ioThreadCount = std::thread::hardware_concurrency()) override;
         virtual void stop() override;
         virtual void join() override;
 
