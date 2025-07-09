@@ -7,8 +7,20 @@ namespace net
 {
     IoService::IoService(IoEventQueue& ioEventQueue)
         : m_running(false)
+        , m_stopSignals(m_ioThreadPool.getContext())
         , m_ioEventQueue(ioEventQueue)
     {}
+
+    void IoService::asyncWaitForStopSignal(SignalHandler handler)
+    {
+#if _WIN32
+        m_stopSignals.add(SIGINT);
+        m_stopSignals.add(SIGTERM);
+        m_stopSignals.add(SIGBREAK);
+#endif // _WIN32
+
+        m_stopSignals.async_wait(handler);
+    }
 
     ServerIoService::ServerIoService(IoEventQueue& ioEventQueue, uint16_t port)
         : IoService(ioEventQueue)

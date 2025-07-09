@@ -21,7 +21,7 @@ namespace net
         virtual void stop() = 0;
         virtual void waitForStop() = 0;
 
-        IoThreadPool& getIoThreadPool() { return m_ioThreadPool; }
+        void asyncWaitForStopSignal(SignalHandler handler);
 
     protected:
         virtual void handleError(const asio::error_code& error) = 0;
@@ -29,6 +29,7 @@ namespace net
     protected:
         std::atomic<bool> m_running;
         IoThreadPool m_ioThreadPool;
+        asio::signal_set m_stopSignals;
         IoEventQueue& m_ioEventQueue;
     };
 

@@ -13,9 +13,7 @@ void WorldServer::start()
 
     m_serverIoService = net::ServerIoService::createInstance(m_ioEventQueue, 12345);
     m_serverIoService->start();
-
-    // 중지 시그널 핸들러 등록
-    m_serverIoService->getIoThreadPool().registerStopSignalHandler(
+    m_serverIoService->asyncWaitForStopSignal(
         [this](const asio::error_code& error, int signalNumber)
         {
             if (!error)
@@ -28,20 +26,18 @@ void WorldServer::start()
             }
         });
 
-    // 메인 루프 실행
-    m_mainLoopThread = std::thread([this]()
-                                   {
-                                       try
-                                       {
-                                           runMainLoop();
-                                       }
-                                       catch (const std::exception& e)
-                                       {
-                                           SPDLOG_ERROR("[WorldServer] 루프 스레드 오류: {}", e.what());
-                                       }
-                                   });
-
-    
+    m_mainLoopThread = std::thread(
+        [this]()
+        {
+            try
+            {
+                runMainLoop();
+            }
+            catch (const std::exception& e)
+            {
+                SPDLOG_ERROR("[WorldServer] 루프 스레드 오류: {}", e.what());
+            }
+        });
 }
 
 void WorldServer::stop()
@@ -56,12 +52,10 @@ void WorldServer::stop()
 
 void WorldServer::watiForStop()
 {
-    // 메인 루프 스레드 종료 대기
     if (m_mainLoopThread.joinable())
     {
         m_mainLoopThread.join();
     }
-
     m_serverIoService->waitForStop();
 
     SPDLOG_INFO("[WorldServer] 서버 종료");
@@ -111,15 +105,15 @@ void WorldServer::processIoEvents()
         {
             switch (event->type)
             {
-                case net::IoEventType::Connect:
-                    handleConnectEvent(event->session);
-                    break;
-                case net::IoEventType::Disconnect:
-                    handleDisconnectEvent(event->session);
-                    break;
-                case net::IoEventType::Receive:
-                    handleRecevieEvent(event->session);
-                    break;
+            case net::IoEventType::Connect:
+                handleConnectEvent(event->session);
+                break;
+            case net::IoEventType::Disconnect:
+                handleDisconnectEvent(event->session);
+                break;
+            case net::IoEventType::Receive:
+                handleRecevieEvent(event->session);
+                break;
             }
         }
     }
