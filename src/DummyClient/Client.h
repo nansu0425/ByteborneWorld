@@ -5,10 +5,10 @@
 #include "Network/Session.h"
 #include "Network/Service.h"
 
-class WorldServer
+class DummyClient
 {
 public:
-    WorldServer();
+    DummyClient();
 
     void start();
     void stop();
@@ -23,7 +23,7 @@ private:
     void handleRecevieEvent(const net::SessionPtr& session);
 
 private:
-    net::ServerIoServicePtr m_serverIoService;
+    net::ClientIoServicePtr m_clientIoService;
     net::IoEventQueue m_ioEventQueue;
     net::SessionManager m_sessionManager;
     std::thread m_mainLoopThread;

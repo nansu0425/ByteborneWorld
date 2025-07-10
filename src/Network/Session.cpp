@@ -203,6 +203,7 @@ namespace net
     void SessionManager::addSession(const SessionPtr& session)  
     {  
         m_sessions[session->getSessionId()] = session;
+        SPDLOG_INFO("[SessionManager] 세션 추가: {}", session->getSessionId());
     }
 
     void SessionManager::removeSession(SessionId sessionId)  
@@ -212,7 +213,8 @@ namespace net
 
     void SessionManager::removeSession(const SessionPtr& session)  
     {  
-        m_sessions.erase(session->getSessionId());  
+        m_sessions.erase(session->getSessionId());
+        SPDLOG_INFO("[SessionManager] 세션 제거: {}", session->getSessionId());
     }
 
     SessionPtr SessionManager::findSession(SessionId sessionId) const  

@@ -1,6 +1,7 @@
 # Add source to this project's executable.
 add_executable (DummyClient
     "Main.cpp"
+    "Client.h" "Client.cpp"
 )
 
 # Set C++ standard

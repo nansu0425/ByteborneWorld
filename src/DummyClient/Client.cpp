@@ -1,18 +1,18 @@
 ﻿#include "Pch.h"
-#include "Server.h"
+#include "Client.h"
 
-WorldServer::WorldServer()
+DummyClient::DummyClient()
     : m_running(false)
 {}
 
-void WorldServer::start()
+void DummyClient::start()
 {
     m_running.store(true);
-    SPDLOG_INFO("[WorldServer] 서버 시작");
+    SPDLOG_INFO("[DummyClient] 클라이언트 시작");
 
-    m_serverIoService = net::ServerIoService::createInstance(m_ioEventQueue, 12345);
-    m_serverIoService->start();
-    m_serverIoService->asyncWaitForStopSignals(
+    m_clientIoService = net::ClientIoService::createInstance(m_ioEventQueue, net::ResolveTarget{"localhost", "12345"});
+    m_clientIoService->start();
+    m_clientIoService->asyncWaitForStopSignals(
         [this](const asio::error_code& error, int signalNumber)
         {
             if (!error)
@@ -21,7 +21,7 @@ void WorldServer::start()
             }
             else
             {
-                SPDLOG_ERROR("[WorldServer] 중지 시그널 처리 오류: {}", error.value());
+                SPDLOG_ERROR("[DummyClient] 중지 시그널 처리 오류: {}", error.value());
             }
         });
 
@@ -34,33 +34,33 @@ void WorldServer::start()
             }
             catch (const std::exception& e)
             {
-                SPDLOG_ERROR("[WorldServer] 루프 스레드 오류: {}", e.what());
+                SPDLOG_ERROR("[DummyClient] 루프 스레드 오류: {}", e.what());
             }
         });
 }
 
-void WorldServer::stop()
+void DummyClient::stop()
 {
     if (m_running.exchange(false))
     {
-        SPDLOG_INFO("[WorldServer] 서버 중지");
+        SPDLOG_INFO("[DummyClient] 클라이언트 중지");
 
-        m_serverIoService->stop();
+        m_clientIoService->stop();
     }
 }
 
-void WorldServer::watiForStop()
+void DummyClient::watiForStop()
 {
     if (m_mainLoopThread.joinable())
     {
         m_mainLoopThread.join();
     }
-    m_serverIoService->waitForStop();
+    m_clientIoService->waitForStop();
 
-    SPDLOG_INFO("[WorldServer] 서버 종료");
+    SPDLOG_INFO("[DummyClient] 클라이언트 종료");
 }
 
-void WorldServer::runMainLoop()
+void DummyClient::runMainLoop()
 {
     constexpr auto TickInterval = std::chrono::milliseconds(50);
     auto lastTickCountTime = std::chrono::steady_clock::now();
@@ -79,7 +79,7 @@ void WorldServer::runMainLoop()
         auto tickCountElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - lastTickCountTime);
         if (std::chrono::seconds(1) <= tickCountElapsed)
         {
-            SPDLOG_INFO("[WorldServer] 틱 카운트: {}", tickCount);
+            SPDLOG_INFO("[DummyClient] 틱 카운트: {}", tickCount);
             lastTickCountTime = end;
             tickCount = 0;
         }
@@ -95,7 +95,7 @@ void WorldServer::runMainLoop()
     }
 }
 
-void WorldServer::processIoEvents()
+void DummyClient::processIoEvents()
 {
     while (!m_ioEventQueue.isEmpty())
     {
@@ -118,17 +118,17 @@ void WorldServer::processIoEvents()
     }
 }
 
-void WorldServer::handleConnectEvent(const net::SessionPtr& session)
+void DummyClient::handleConnectEvent(const net::SessionPtr& session)
 {
     m_sessionManager.addSession(session);
 }
 
-void WorldServer::handleDisconnectEvent(const net::SessionPtr & session)
+void DummyClient::handleDisconnectEvent(const net::SessionPtr& session)
 {
     m_sessionManager.removeSession(session);
 }
 
-void WorldServer::handleRecevieEvent(const net::SessionPtr& session)
+void DummyClient::handleRecevieEvent(const net::SessionPtr& session)
 {
     // TODO: 수신 데이터 처리 로직 추가
 
