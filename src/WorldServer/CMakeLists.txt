@@ -15,5 +15,5 @@ target_precompile_headers(WorldServer PRIVATE
 
 # Link libraries
 target_link_libraries(WorldServer PRIVATE
-  Core Network
+    Core Network
 )
