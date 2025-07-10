@@ -6,20 +6,22 @@ int main()
 {
     core::AppContext::getInstance().initialize();
 
-    WorldServer server;
-    server.start();
-
-    char input;
-    while (std::cin >> input)
     {
-        if (input == 'q' || input == 'Q')
-        {
-            break;
-        }
-    }
+        WorldServer server;
+        server.start();
 
-    server.stop();
-    server.watiForStop();
+        char input;
+        while (std::cin >> input)
+        {
+            if (input == 'q' || input == 'Q')
+            {
+                break;
+            }
+        }
+
+        server.stop();
+        server.watiForStop();
+    }
 
     core::AppContext::getInstance().cleanup();
 

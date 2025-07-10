@@ -6,20 +6,22 @@ int main()
 {
     core::AppContext::getInstance().initialize();
 
-    DummyClient client;
-    client.start();
-
-    char input;
-    while (std::cin >> input)
     {
-        if (input == 'q' || input == 'Q')
-        {
-            break;
-        }
-    }
+        DummyClient client;
+        client.start();
 
-    client.stop();
-    client.watiForStop();
+        char input;
+        while (std::cin >> input)
+        {
+            if (input == 'q' || input == 'Q')
+            {
+                break;
+            }
+        }
+
+        client.stop();
+        client.watiForStop();
+    }
 
     core::AppContext::getInstance().cleanup();
 
