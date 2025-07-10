@@ -136,5 +136,5 @@ void WorldServer::handleRecevieEvent(const net::SessionPtr& session)
     // TODO: 수신 데이터 처리 로직 추가
 
     // 다음 수신 요청
-    session->asyncReceive();
+    session->receive();
 }

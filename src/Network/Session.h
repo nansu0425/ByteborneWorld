@@ -23,8 +23,8 @@ namespace net
 
         static SessionPtr createInstance(asio::ip::tcp::socket socket, IoEventQueue& eventQueue);
 
-        void asyncReceive();
-        void asyncSend(std::vector<uint8_t> data);
+        void receive();
+        void send(std::vector<uint8_t> data);
 
         SessionId getSessionId() const { return m_sessionId; }
         const ReceiveBuffer& getReceiveBuffer() const { return m_receiveBuffer; }

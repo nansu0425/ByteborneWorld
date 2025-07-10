@@ -9,34 +9,36 @@ namespace net
         static std::atomic<SessionId> s_nextSessionId = 1;
 
         auto session = std::make_shared<Session>(s_nextSessionId.fetch_add(1), std::move(socket), eventQueue);
-        session->asyncReceive();
+        session->receive();
 
         return session;
     }
 
-    void Session::asyncReceive()  
+    void Session::receive()  
     {
-        asio::post(m_strand,
-                   [self = shared_from_this()]()
-                   {
-                       self->asyncRead();
-                   });  
+        asio::post(
+            m_strand,
+            [self = shared_from_this()]()
+            {
+                self->asyncRead();
+            });
     }
 
-    void Session::asyncSend(std::vector<uint8_t> data)  
+    void Session::send(std::vector<uint8_t> data)  
     {
-        asio::post(m_strand,
-                   [self = shared_from_this(), data = std::move(data)]() mutable
-                   {
-                       bool writeInProgress = !self->m_sendQueue.empty();
-                       self->m_sendQueue.push_back(std::move(data));
+        asio::post(
+            m_strand,
+            [self = shared_from_this(), data = std::move(data)]() mutable
+            {
+                bool writeInProgress = !self->m_sendQueue.empty();
+                self->m_sendQueue.push_back(std::move(data));
 
-                       // 쓰기 작업이 진행 중이지 않으면 쓰기 요청
-                       if (!writeInProgress)
-                       {
-                           self->asyncWrite();
-                       }
-                   });
+                // 쓰기 작업이 진행 중이지 않으면 쓰기 요청
+                if (!writeInProgress)
+                {
+                    self->asyncWrite();
+                }
+            });
     }
 
 
@@ -61,13 +63,15 @@ namespace net
             return;  
         }
 
-        m_socket.async_read_some(asio::buffer(m_receiveBuffer),
-                                 asio::bind_executor(m_strand,
-                                                     [self = shared_from_this()]
-                                                     (const asio::error_code& error, size_t bytesRead)
-                                                     {
-                                                         self->onRead(error, bytesRead);
-                                                     }));
+        m_socket.async_read_some(
+            asio::buffer(m_receiveBuffer),
+            asio::bind_executor(
+                m_strand,
+                [self = shared_from_this()]
+                (const asio::error_code& error, size_t bytesRead)
+                {
+                    self->onRead(error, bytesRead);
+                }));
     }
 
     void Session::onRead(const asio::error_code& error, size_t bytesRead)
@@ -94,14 +98,16 @@ namespace net
             return;  
         }
 
-        asio::async_write(m_socket,
-                          asio::buffer(m_sendQueue.front()),
-                          asio::bind_executor(m_strand,
-                                              [self = shared_from_this()]
-                                              (const asio::error_code& error, size_t bytesWritten)
-                                              {
-                                                  self->onWritten(error, bytesWritten);
-                                              }));  
+        asio::async_write(
+            m_socket,
+            asio::buffer(m_sendQueue.front()),
+            asio::bind_executor(
+                m_strand,
+                [self = shared_from_this()]
+                (const asio::error_code& error, size_t bytesWritten)
+                {
+                    self->onWritten(error, bytesWritten);
+                }));
     }
 
     void Session::onWritten(const asio::error_code& error, size_t bytesWritten)
@@ -230,7 +236,7 @@ namespace net
     {  
         for (const auto& pair : m_sessions)  
         {  
-            pair.second->asyncSend(data);  
+            pair.second->send(data);  
         }  
     }
 }
