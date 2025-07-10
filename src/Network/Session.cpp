@@ -6,9 +6,8 @@ namespace net
 {
     SessionPtr Session::createInstance(asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
     {
-        std::atomic<SessionId> s_nextSessionId = 1;
+        static std::atomic<SessionId> s_nextSessionId = 1;
 
-        // 세션 생성 후 수신 요청
         auto session = std::make_shared<Session>(s_nextSessionId.fetch_add(1), std::move(socket), eventQueue);
         session->asyncReceive();
 
@@ -52,7 +51,6 @@ namespace net
 
     Session::~Session()
     {
-        close();
         SPDLOG_INFO("[Session {}] 세션 소멸", m_sessionId);
     }
 

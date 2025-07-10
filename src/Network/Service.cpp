@@ -158,7 +158,6 @@ namespace net
             SPDLOG_INFO("[ClientIoService] 서비스 중지");
 
             m_resolver.cancel();
-            m_socket.cancel();
             m_socket.close();
             m_ioThreadPool.stop();
         }

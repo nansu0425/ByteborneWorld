@@ -12,7 +12,7 @@ namespace net
     class IoEventQueue;
 
     class Session
-        : std::enable_shared_from_this<Session>
+        : public std::enable_shared_from_this<Session>
     {
     public:
         using ReceiveBuffer = std::array<uint8_t, 4096>;
