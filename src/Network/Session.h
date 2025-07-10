@@ -56,6 +56,8 @@ namespace net
         void removeSession(const SessionPtr& session);
         SessionPtr findSession(SessionId sessionId) const;
 
+        void broadcast(const std::vector<uint8_t>& data);
+
     private:
         std::unordered_map<SessionId, SessionPtr> m_sessions;
     };

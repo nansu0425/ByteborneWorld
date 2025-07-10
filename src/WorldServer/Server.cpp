@@ -65,12 +65,15 @@ void WorldServer::runMainLoop()
     constexpr auto TickInterval = std::chrono::milliseconds(50);
     auto lastTickCountTime = std::chrono::steady_clock::now();
     int32_t tickCount = 0;
+    std::string sendMessage = "Hello from WorldServer!";
+    std::vector<uint8_t> sendData(sendMessage.begin(), sendMessage.end());
 
     while (m_running.load())
     {
         auto start = std::chrono::steady_clock::now();
 
-        processIoEvents();
+        processIoEvents(); 
+        m_sessionManager.broadcast(sendData); // 모든 세션에 메시지 전송
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();

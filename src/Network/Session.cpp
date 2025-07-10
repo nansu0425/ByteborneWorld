@@ -225,4 +225,12 @@ namespace net
 
         return nullptr;  
     }
+
+    void SessionManager::broadcast(const std::vector<uint8_t>& data)  
+    {  
+        for (const auto& pair : m_sessions)  
+        {  
+            pair.second->asyncSend(data);  
+        }  
+    }
 }
