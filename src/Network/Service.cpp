@@ -11,7 +11,7 @@ namespace net
         , m_ioEventQueue(ioEventQueue)
     {}
 
-    void IoService::asyncWaitForStopSignal(SignalHandler handler)
+    void IoService::asyncWaitForStopSignals(SignalHandler handler)
     {
 #if _WIN32
         m_stopSignals.add(SIGINT);

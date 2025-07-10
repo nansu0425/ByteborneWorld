@@ -13,7 +13,7 @@ void WorldServer::start()
 
     m_serverIoService = net::ServerIoService::createInstance(m_ioEventQueue, 12345);
     m_serverIoService->start();
-    m_serverIoService->asyncWaitForStopSignal(
+    m_serverIoService->asyncWaitForStopSignals(
         [this](const asio::error_code& error, int signalNumber)
         {
             if (!error)
