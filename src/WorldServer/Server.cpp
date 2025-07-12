@@ -3,64 +3,63 @@
 
 WorldServer::WorldServer()
     : m_running(false)
-{}
+{
+    m_serverService = net::ServerService::createInstance(m_ioThreadPool.getContext(), 12345);
+}
 
 void WorldServer::start()
 {
-    m_running.store(true);
+    if (m_running.exchange(true))
+    {
+        // 이미 실행 중인 경우 아무 작업도 하지 않음
+        return;
+    }
+
     SPDLOG_INFO("[WorldServer] 서버 시작");
 
-    m_serverIoService = net::ServerIoService::createInstance(m_ioEventQueue, 12345);
-    m_serverIoService->start();
-    m_serverIoService->asyncWaitForStopSignals(
-        [this](const asio::error_code& error, int signalNumber)
-        {
-            if (!error)
-            {
-                stop();
-            }
-            else
-            {
-                SPDLOG_ERROR("[WorldServer] 중지 시그널 처리 오류: {}", error.value());
-            }
-        });
-
-    m_mainLoopThread = std::thread(
+    m_mainThread = std::thread(
         [this]()
         {
             try
             {
-                runMainLoop();
+                loop();
+                close();
             }
             catch (const std::exception& e)
             {
-                SPDLOG_ERROR("[WorldServer] 루프 스레드 오류: {}", e.what());
+                SPDLOG_ERROR("[WorldServer] 메인 스레드 오류: {}", e.what());
             }
         });
+    m_ioThreadPool.run();
+    
+    m_serverService->start();
 }
 
 void WorldServer::stop()
 {
-    if (m_running.exchange(false))
+    if (!m_running.exchange(false))
     {
-        SPDLOG_INFO("[WorldServer] 서버 중지");
-
-        m_serverIoService->stop();
+        // 이미 중지 상태이므로 아무 작업도 하지 않음
+        return;
     }
+
+    SPDLOG_INFO("[WorldServer] 서버 중지");
+
+    m_serverService->stop();
 }
 
-void WorldServer::watiForStop()
+void WorldServer::join()
 {
-    if (m_mainLoopThread.joinable())
+    m_ioThreadPool.join();
+    if (m_mainThread.joinable())
     {
-        m_mainLoopThread.join();
+        m_mainThread.join();
     }
-    m_serverIoService->waitForStop();
 
     SPDLOG_INFO("[WorldServer] 서버 종료");
 }
 
-void WorldServer::runMainLoop()
+void WorldServer::loop()
 {
     constexpr auto TickInterval = std::chrono::milliseconds(50);
     auto lastTickCountTime = std::chrono::steady_clock::now();
@@ -72,8 +71,8 @@ void WorldServer::runMainLoop()
     {
         auto start = std::chrono::steady_clock::now();
 
-        processIoEvents(); 
-        m_sessionManager.broadcast(sendData); // 모든 세션에 메시지 전송
+        processServiceEvents();
+        processSessionEvents();
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -98,43 +97,80 @@ void WorldServer::runMainLoop()
     }
 }
 
-void WorldServer::processIoEvents()
+void WorldServer::close()
 {
-    while (!m_ioEventQueue.isEmpty())
+    m_sessionManager.stopAllSessions();
+
+    while (!m_sessionManager.isEmpty())
     {
-        auto event = m_ioEventQueue.pop();
-        if (event)
+        processServiceEvents();
+        processSessionEvents();
+
+        std::this_thread::yield();
+    }
+
+    m_ioThreadPool.reset();
+}
+
+void WorldServer::processServiceEvents()
+{
+    while (auto event = m_serverService->popEvent())
+    {
+        switch (event->type)
         {
-            switch (event->type)
-            {
-            case net::IoEventType::Connect:
-                handleConnectEvent(event->session);
-                break;
-            case net::IoEventType::Disconnect:
-                handleDisconnectEvent(event->session);
-                break;
-            case net::IoEventType::Receive:
-                handleRecevieEvent(event->session);
-                break;
-            }
+        case net::ServiceEventType::Close:
+            handleServiceEvent(*static_cast<net::CloseServiceEvent*>(event.get()));
+            break;
+        case net::ServiceEventType::Accept:
+            handleServiceEvent(*static_cast<net::AcceptServiceEvent*>(event.get()));
+            break;
+        default:
+            SPDLOG_WARN("[WorldServer] 알 수 없는 서비스 이벤트 타입: {}", static_cast<int>(event->type));
+            assert(false);
+            break;
         }
     }
 }
 
-void WorldServer::handleConnectEvent(const net::SessionPtr& session)
+void WorldServer::handleServiceEvent(net::CloseServiceEvent& event)
 {
+    SPDLOG_INFO("[WorldServer] 서비스 종료 이벤트 처리");
+
+    stop();
+}
+
+void WorldServer::handleServiceEvent(net::AcceptServiceEvent& event)
+{
+    SPDLOG_INFO("[WorldServer] 서비스 연결 수락 이벤트 처리");
+
+    auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
     m_sessionManager.addSession(session);
+    session->start();
 }
 
-void WorldServer::handleDisconnectEvent(const net::SessionPtr & session)
+void WorldServer::processSessionEvents()
 {
-    m_sessionManager.removeSession(session);
+    while (auto event = m_sessionEventQueue.pop())
+    {
+        switch (event->type)
+        {
+        case net::SessionEventType::Close:
+            handleSessionEvent(*static_cast<net::CloseSessionEvent*>(event.get()));
+            break;
+        case net::SessionEventType::Receive:
+            handleSessionEvent(*static_cast<net::ReceiveSessionEvent*>(event.get()));
+            break;
+        }
+    }
 }
 
-void WorldServer::handleRecevieEvent(const net::SessionPtr& session)
+void WorldServer::handleSessionEvent(net::CloseSessionEvent& event)
 {
-    // TODO: 수신 데이터 처리 로직 추가
+    SPDLOG_INFO("[WorldServer] 세션 종료 이벤트 처리: {}", event.sessionId);
+    m_sessionManager.removeSession(event.sessionId);
+}
 
-    // 다음 수신 요청
-    session->receive();
+void WorldServer::handleSessionEvent(net::ReceiveSessionEvent& event)
+{
+    SPDLOG_INFO("[WorldServer] 세션 수신 이벤트 처리: {}", event.sessionId);
 }

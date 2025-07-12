@@ -4,49 +4,12 @@
 
 namespace net  
 {
-    SessionPtr Session::createInstance(asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
-    {
-        static std::atomic<SessionId> s_nextSessionId = 1;
-
-        auto session = std::make_shared<Session>(s_nextSessionId.fetch_add(1), std::move(socket), eventQueue);
-        session->receive();
-
-        return session;
-    }
-
-    void Session::receive()  
-    {
-        asio::post(
-            m_strand,
-            [self = shared_from_this()]()
-            {
-                self->asyncRead();
-            });
-    }
-
-    void Session::send(std::vector<uint8_t> data)  
-    {
-        asio::post(
-            m_strand,
-            [self = shared_from_this(), data = std::move(data)]() mutable
-            {
-                bool writeInProgress = !self->m_sendQueue.empty();
-                self->m_sendQueue.push_back(std::move(data));
-
-                // 쓰기 작업이 진행 중이지 않으면 쓰기 요청
-                if (!writeInProgress)
-                {
-                    self->asyncWrite();
-                }
-            });
-    }
-
-
-    Session::Session(SessionId sessionId, asio::ip::tcp::socket socket, IoEventQueue& eventQueue)
-        : m_sessionId(sessionId)
+    Session::Session(SessionId sessionId, asio::ip::tcp::socket&& socket, SessionEventQueue& eventQueue)
+        : m_running(false)
+        , m_sessionId(sessionId)
         , m_socket(std::move(socket))
-        , m_strand(asio::make_strand(m_socket.get_executor()))
         , m_eventQueue(eventQueue)
+        , m_strand(asio::make_strand(m_socket.get_executor()))
     {
         SPDLOG_INFO("[Session {}] 세션 생성", m_sessionId);
     }
@@ -56,9 +19,90 @@ namespace net
         SPDLOG_INFO("[Session {}] 세션 소멸", m_sessionId);
     }
 
+    SessionPtr Session::createInstance(asio::ip::tcp::socket&& socket, SessionEventQueue& eventQueue)
+    {
+        static std::atomic<SessionId> s_nextSessionId = 1;
+
+        return std::make_shared<Session>(s_nextSessionId.fetch_add(1), std::move(socket), eventQueue);
+    }
+
+    void Session::start()
+    {
+        if (m_running.exchange(true))
+        {
+            // 이미 실행 중인 경우 아무 작업도 하지 않음
+            return;
+        }
+
+        SPDLOG_INFO("[Session {}] 세션 시작", m_sessionId);
+
+        asio::post(
+            m_strand,
+            [this, self = shared_from_this()]()
+            {
+                // 비동기 읽기 시작
+                asyncRead();
+            });
+    }
+
+    void Session::stop()
+    {
+        if (!m_running.exchange(false))
+        {
+            // 이미 중지 상태이므로 아무 작업도 하지 않음
+            return;
+        }
+
+        SPDLOG_INFO("[Session {}] 세션 중지", m_sessionId);
+
+        asio::post(
+            m_strand,
+            [this, self = shared_from_this()]()
+            {
+                close();
+            });
+    }
+
+    void Session::receive()  
+    {
+        if (!m_running.load())  
+        {  
+            return;  
+        }
+
+        asio::post(
+            m_strand,
+            [this, self = shared_from_this()]()
+            {
+                asyncRead();
+            });
+    }
+
+    void Session::send(std::vector<uint8_t> data)  
+    {
+        if (!m_running.load())  
+        {  
+            return;  
+        }
+
+        asio::post(
+            m_strand,
+            [this, self = shared_from_this(), data = std::move(data)]() mutable
+            {
+                bool writeInProgress = !m_sendQueue.empty();
+                m_sendQueue.push_back(std::move(data));
+
+                // 쓰기 작업이 진행 중이지 않으면 쓰기 요청
+                if (!writeInProgress)
+                {
+                    asyncWrite();
+                }
+            });
+    }
+
     void Session::asyncRead()  
     {
-        if (m_closed)  
+        if (!m_running)  
         {
             return;  
         }
@@ -67,10 +111,10 @@ namespace net
             asio::buffer(m_receiveBuffer),
             asio::bind_executor(
                 m_strand,
-                [self = shared_from_this()]
+                [this, self = shared_from_this()]
                 (const asio::error_code& error, size_t bytesRead)
                 {
-                    self->onRead(error, bytesRead);
+                    onRead(error, bytesRead);
                 }));
     }
 
@@ -84,16 +128,14 @@ namespace net
 
         SPDLOG_INFO("[Session {}] bytesRead: {}", m_sessionId, bytesRead);
 
-        // 수신 이벤트를 이벤트 큐에 추가
-        IoEventPtr event = std::make_shared<IoEvent>();
-        event->session = shared_from_this();
-        event->type = IoEventType::Receive;
+        // 이벤트 큐에 receive 이벤트 추가
+        SessionEventPtr event = std::make_shared<ReceiveSessionEvent>(m_sessionId);
         m_eventQueue.push(std::move(event));
     }
 
     void Session::asyncWrite()
     {
-        if (m_closed)  
+        if (!m_running)  
         {
             return;  
         }
@@ -103,10 +145,10 @@ namespace net
             asio::buffer(m_sendQueue.front()),
             asio::bind_executor(
                 m_strand,
-                [self = shared_from_this()]
+                [this, self = shared_from_this()]
                 (const asio::error_code& error, size_t bytesWritten)
                 {
-                    self->onWritten(error, bytesWritten);
+                    onWritten(error, bytesWritten);
                 }));
     }
 
@@ -137,86 +179,130 @@ namespace net
             break;
         case asio::error::connection_reset:
             SPDLOG_ERROR("[Session {}] connection_reset", m_sessionId);
-            close();
+            stop();
             break;
         case asio::error::connection_aborted:
             SPDLOG_ERROR("[Session {}] connection_aborted", m_sessionId);
-            close();
+            stop();
             break;
         case asio::error::timed_out:
             SPDLOG_ERROR("[Session {}] timed_out", m_sessionId);
-            close();
+            stop();
             break;
         case asio::error::not_connected:
             SPDLOG_ERROR("[Session {}] not_connected", m_sessionId);
-            assert(m_closed);
+            assert(!m_running.load());
             break;
         case asio::error::eof:
             SPDLOG_INFO("[Session {}] eof", m_sessionId);
-            close();
+            stop();
             break;
         case asio::error::bad_descriptor:
             SPDLOG_ERROR("[Session {}] bad_descriptor", m_sessionId);
-            assert(m_closed);
+            assert(!m_running.load());
             break;
         default:
             SPDLOG_ERROR("[Session {}] 알 수 없는 에러: {}", m_sessionId, error.value());
             assert(false);
+            stop();
             break;
         }
     }
 
     void Session::close()  
     {
-        if (!m_closed)  
+        assert(!m_running.load());
+
+        if (!m_socket.is_open())
         {
-            m_closed = true;
-            SPDLOG_INFO("[Session {}] 세션 종료", m_sessionId);
+            SPDLOG_WARN("[Session {}] 소켓이 이미 닫혀 있습니다.", m_sessionId);
+            return;
+        }
 
-            asio::error_code error;
+        asio::error_code error;
 
-            // 모든 비동기 작업을 취소
-            m_socket.cancel(error);
-            if (error)  
-            {  
-                handleError(error);
-            }
+        // 모든 비동기 작업을 취소
+        m_socket.cancel(error);
+        if (error)
+        {
+            handleError(error);
+        }
 
-            // 송수신 기능 중지
-            m_socket.shutdown(asio::ip::tcp::socket::shutdown_both, error);
-            if (error)  
-            {
-                handleError(error);
-            }
+        // 송수신 기능 중지
+        m_socket.shutdown(asio::ip::tcp::socket::shutdown_both, error);
+        if (error)
+        {
+            handleError(error);
+        }
 
-            // 소켓 닫기
-            m_socket.close(error);
-            if (error)  
-            {  
-                handleError(error);
-            }
+        // 소켓 닫기
+        m_socket.close(error);
+        if (error)
+        {
+            handleError(error);
+        }
 
-            // 이벤트 큐에 세션 종료 이벤트 추가
-            IoEventPtr event = std::make_shared<IoEvent>();
-            event->session = shared_from_this();
-            event->type = IoEventType::Disconnect;
-            m_eventQueue.push(std::move(event));
-        }  
+        // 이벤트 큐에 close 이벤트 추가
+        SessionEventPtr event = std::make_shared<CloseSessionEvent>(m_sessionId);
+        m_eventQueue.push(std::move(event));
+    }
+
+    void SessionManager::broadcast(const std::vector<uint8_t>& data)
+    {
+        for (const auto& pair : m_sessions)
+        {
+            pair.second->send(data);
+        }
+    }
+
+    void SessionManager::stopAllSessions()
+    {
+        for (const auto& pair : m_sessions)
+        {
+            pair.second->stop();
+        }
+
+        SPDLOG_INFO("[SessionManager] 모든 세션 중지");
     }
 
     void SessionManager::addSession(const SessionPtr& session)  
-    {  
+    {
+        assert(session->isRunning() == false);
+
         m_sessions[session->getSessionId()] = session;
         SPDLOG_INFO("[SessionManager] 세션 추가: {}", session->getSessionId());
     }
 
     void SessionManager::removeSession(SessionId sessionId)  
-    {  
-        m_sessions.erase(sessionId);  
+    {
+        if (m_sessions.find(sessionId) == m_sessions.end())
+        {
+            SPDLOG_WARN("[SessionManager] 세션 제거 실패: {} (존재하지 않는 세션 ID)", sessionId);
+            return;
+        }
+        
+        assert(m_sessions[sessionId]->isRunning() == false);
+
+        m_sessions.erase(sessionId);
+        SPDLOG_INFO("[SessionManager] 세션 제거: {}", sessionId);
     }
 
     void SessionManager::removeSession(const SessionPtr& session)  
-    {  
+    {
+        if (session == nullptr)
+        {
+            SPDLOG_WARN("[SessionManager] 세션 제거 실패: nullptr");
+            return;
+        }
+
+        if (m_sessions.find(session->getSessionId()) == m_sessions.end())
+        {
+            SPDLOG_WARN("[SessionManager] 세션 제거 실패: {} (존재하지 않는 세션 ID)", session->getSessionId());
+            return;
+        }
+
+        assert(session->isRunning() == false);
+
         m_sessions.erase(session->getSessionId());
         SPDLOG_INFO("[SessionManager] 세션 제거: {}", session->getSessionId());
     }
@@ -230,13 +316,5 @@ namespace net
         }
 
         return nullptr;  
-    }
-
-    void SessionManager::broadcast(const std::vector<uint8_t>& data)  
-    {  
-        for (const auto& pair : m_sessions)  
-        {  
-            pair.second->send(data);  
-        }  
     }
 }

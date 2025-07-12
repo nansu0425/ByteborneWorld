@@ -12,20 +12,25 @@ public:
 
     void start();
     void stop();
-    void watiForStop();
+    void join();
 
 private:
-    void runMainLoop();
+    void loop();
+    void close();
 
-    void processIoEvents();
-    void handleConnectEvent(const net::SessionPtr& session);
-    void handleDisconnectEvent(const net::SessionPtr& session);
-    void handleRecevieEvent(const net::SessionPtr& session);
+    void processServiceEvents();
+    void handleServiceEvent(net::CloseServiceEvent& event);
+    void handleServiceEvent(net::ConnectServiceEvent& event);
+
+    void processSessionEvents();
+    void handleSessionEvent(net::CloseSessionEvent& event);
+    void handleSessionEvent(net::ReceiveSessionEvent& event);
 
 private:
-    net::ClientIoServicePtr m_clientIoService;
-    net::IoEventQueue m_ioEventQueue;
-    net::SessionManager m_sessionManager;
-    std::thread m_mainLoopThread;
     std::atomic<bool> m_running;
+    std::thread m_mainThread;
+    net::IoThreadPool m_ioThreadPool;
+    net::ClientServicePtr m_clientService;
+    net::SessionEventQueue m_sessionEventQueue;
+    net::SessionManager m_sessionManager;
 };

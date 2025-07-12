@@ -20,7 +20,7 @@ int main()
         }
 
         client.stop();
-        client.watiForStop();
+        client.join();
     }
 
     core::AppContext::getInstance().cleanup();

@@ -3,64 +3,64 @@
 
 DummyClient::DummyClient()
     : m_running(false)
-{}
+{
+    m_clientService = net::ClientService::createInstance(
+        m_ioThreadPool.getContext(), net::ResolveTarget{"localhost", "12345"});
+}
 
 void DummyClient::start()
 {
-    m_running.store(true);
+    if (m_running.exchange(true))
+    {
+        // 이미 실행 중인 경우 아무 작업도 하지 않음
+        return;
+    }
+
     SPDLOG_INFO("[DummyClient] 클라이언트 시작");
 
-    m_clientIoService = net::ClientIoService::createInstance(m_ioEventQueue, net::ResolveTarget{"localhost", "12345"});
-    m_clientIoService->start();
-    m_clientIoService->asyncWaitForStopSignals(
-        [this](const asio::error_code& error, int signalNumber)
-        {
-            if (!error)
-            {
-                stop();
-            }
-            else
-            {
-                SPDLOG_ERROR("[DummyClient] 중지 시그널 처리 오류: {}", error.value());
-            }
-        });
-
-    m_mainLoopThread = std::thread(
+    m_mainThread = std::thread(
         [this]()
         {
             try
             {
-                runMainLoop();
+                loop();
+                close();
             }
             catch (const std::exception& e)
             {
-                SPDLOG_ERROR("[DummyClient] 루프 스레드 오류: {}", e.what());
+                SPDLOG_ERROR("[DummyClient] 메인 스레드 오류: {}", e.what());
             }
         });
+    m_ioThreadPool.run();
+    
+    m_clientService->start();
 }
 
 void DummyClient::stop()
 {
-    if (m_running.exchange(false))
+    if (!m_running.exchange(false))
     {
-        SPDLOG_INFO("[DummyClient] 클라이언트 중지");
-
-        m_clientIoService->stop();
+        // 이미 중지 상태이므로 아무 작업도 하지 않음
+        return;
     }
+
+    SPDLOG_INFO("[DummyClient] 클라이언트 중지");
+
+    m_clientService->stop();
 }
 
-void DummyClient::watiForStop()
+void DummyClient::join()
 {
-    if (m_mainLoopThread.joinable())
+    m_ioThreadPool.join();
+    if (m_mainThread.joinable())
     {
-        m_mainLoopThread.join();
+        m_mainThread.join();
     }
-    m_clientIoService->waitForStop();
 
     SPDLOG_INFO("[DummyClient] 클라이언트 종료");
 }
 
-void DummyClient::runMainLoop()
+void DummyClient::loop()
 {
     constexpr auto TickInterval = std::chrono::milliseconds(50);
     auto lastTickCountTime = std::chrono::steady_clock::now();
@@ -70,7 +70,8 @@ void DummyClient::runMainLoop()
     {
         auto start = std::chrono::steady_clock::now();
 
-        processIoEvents();
+        processServiceEvents();
+        processSessionEvents();
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -95,43 +96,80 @@ void DummyClient::runMainLoop()
     }
 }
 
-void DummyClient::processIoEvents()
+void DummyClient::close()
 {
-    while (!m_ioEventQueue.isEmpty())
+    m_sessionManager.stopAllSessions();
+
+    while (!m_sessionManager.isEmpty())
     {
-        auto event = m_ioEventQueue.pop();
-        if (event)
+        processServiceEvents();
+        processSessionEvents();
+
+        std::this_thread::yield();
+    }
+
+    m_ioThreadPool.reset();
+}
+
+void DummyClient::processServiceEvents()
+{
+    while (auto event = m_clientService->popEvent())
+    {
+        switch (event->type)
         {
-            switch (event->type)
-            {
-            case net::IoEventType::Connect:
-                handleConnectEvent(event->session);
-                break;
-            case net::IoEventType::Disconnect:
-                handleDisconnectEvent(event->session);
-                break;
-            case net::IoEventType::Receive:
-                handleRecevieEvent(event->session);
-                break;
-            }
+        case net::ServiceEventType::Close:
+            handleServiceEvent(*static_cast<net::CloseServiceEvent*>(event.get()));
+            break;
+        case net::ServiceEventType::Connect:
+            handleServiceEvent(*static_cast<net::ConnectServiceEvent*>(event.get()));
+            break;
+        default:
+            SPDLOG_WARN("[DummyClient] 알 수 없는 서비스 이벤트 타입: {}", static_cast<int>(event->type));
+            assert(false);
+            break;
         }
     }
 }
 
-void DummyClient::handleConnectEvent(const net::SessionPtr& session)
+void DummyClient::handleServiceEvent(net::CloseServiceEvent& event)
 {
+    SPDLOG_INFO("[DummyClient] 서비스 종료 이벤트 처리");
+
+    stop();
+}
+
+void DummyClient::handleServiceEvent(net::ConnectServiceEvent& event)
+{
+    SPDLOG_INFO("[DummyClient] 서비스 연결 성공 이벤트 처리");
+
+    auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
     m_sessionManager.addSession(session);
+    session->start();
 }
 
-void DummyClient::handleDisconnectEvent(const net::SessionPtr& session)
+void DummyClient::processSessionEvents()
 {
-    m_sessionManager.removeSession(session);
+    while (auto event = m_sessionEventQueue.pop())
+    {
+        switch (event->type)
+        {
+        case net::SessionEventType::Close:
+            handleSessionEvent(*static_cast<net::CloseSessionEvent*>(event.get()));
+            break;
+        case net::SessionEventType::Receive:
+            handleSessionEvent(*static_cast<net::ReceiveSessionEvent*>(event.get()));
+            break;
+        }
+    }
 }
 
-void DummyClient::handleRecevieEvent(const net::SessionPtr& session)
+void DummyClient::handleSessionEvent(net::CloseSessionEvent& event)
 {
-    // TODO: 수신 데이터 처리 로직 추가
+    SPDLOG_INFO("[DummyClient] 세션 종료 이벤트 처리: {}", event.sessionId);
+    m_sessionManager.removeSession(event.sessionId);
+}
 
-    // 다음 수신 요청
-    session->receive();
+void DummyClient::handleSessionEvent(net::ReceiveSessionEvent& event)
+{
+    SPDLOG_INFO("[DummyClient] 세션 수신 이벤트 처리: {}", event.sessionId);
 }
