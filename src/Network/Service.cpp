@@ -108,9 +108,9 @@ namespace net
         if (!error)
         {
             const auto& remoteEndpoint = socket.remote_endpoint();
-            SPDLOG_INFO("[ServerService] 연결 수락: {}:{}", remoteEndpoint.address().to_string(), remoteEndpoint.port());
+            SPDLOG_INFO("[ServerService] 클라이언트 수락: {}:{}", remoteEndpoint.address().to_string(), remoteEndpoint.port());
 
-            // 이벤트 큐에 accept 이벤트 추가
+            // 이벤트 큐에 클라이언트 수락 이벤트 추가
             ServiceEventPtr event = std::make_shared<AcceptServiceEvent>(std::move(socket));
             m_eventQueue.push(std::move(event));
         }
@@ -162,6 +162,8 @@ namespace net
     {
         assert(!m_running.load());
 
+        SPDLOG_INFO("[ServerService] 서비스 닫기");
+
         m_stopSignals.cancel();
         if (m_acceptor.is_open())
         {
@@ -169,7 +171,7 @@ namespace net
             m_acceptor.close();
         }
 
-        // 서비스 이벤트 큐에 종료 이벤트 추가
+        // 서비스 이벤트 큐에 닫기 이벤트 추가
         ServiceEventPtr event = std::make_shared<CloseServiceEvent>();
         m_eventQueue.push(std::move(event));
     }
@@ -250,7 +252,7 @@ namespace net
             for (const auto& entry : results)
             {
                 const auto& endpoint = entry.endpoint();
-                SPDLOG_INFO("[ClientService] endpoint: {}:{}", endpoint.address().to_string(), endpoint.port());
+                SPDLOG_INFO("[ClientService] 엔드포인트: {}:{}", endpoint.address().to_string(), endpoint.port());
             }
 
             m_resolveResults = results;
@@ -284,9 +286,9 @@ namespace net
     {
         if (!error)
         {
-            SPDLOG_INFO("[ClientService] 연결 성공: {}:{}", m_resolveTarget.host, m_resolveTarget.service);
+            SPDLOG_INFO("[ClientService] 서버 연결: {}:{}", m_resolveTarget.host, m_resolveTarget.service);
 
-            // 이벤트 큐에 connect 이벤트 추가
+            // 이벤트 큐에 서버 연결 이벤트 추가
             ServiceEventPtr event = std::make_shared<ConnectServiceEvent>(std::move(m_socket));
             m_eventQueue.push(std::move(event));
         }
@@ -349,6 +351,8 @@ namespace net
     {
         assert(!m_running.load());
 
+        SPDLOG_INFO("[ClientService] 서비스 닫기");
+
         m_stopSignals.cancel();
         m_resolver.cancel();
         if (m_socket.is_open())
@@ -357,7 +361,7 @@ namespace net
             m_socket.close();
         }
 
-        // 서비스 이벤트 큐에 종료 이벤트 추가
+        // 서비스 이벤트 큐에 닫기 이벤트 추가
         ServiceEventPtr event = std::make_shared<CloseServiceEvent>();
         m_eventQueue.push(std::move(event));
     }

@@ -19,6 +19,7 @@ namespace net
         virtual void stop() = 0;
 
         ServiceEventPtr popEvent() { return m_eventQueue.pop(); }
+        bool isEventQueueEmpty() { return m_eventQueue.isEmpty(); }
 
     protected:
         virtual void handleError(const asio::error_code& error) = 0;

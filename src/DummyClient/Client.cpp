@@ -45,8 +45,6 @@ void DummyClient::stop()
     }
 
     SPDLOG_INFO("[DummyClient] 클라이언트 중지");
-
-    m_clientService->stop();
 }
 
 void DummyClient::join()
@@ -98,9 +96,13 @@ void DummyClient::loop()
 
 void DummyClient::close()
 {
+    SPDLOG_INFO("[DummyClient] 클라이언트 닫기");
+
     m_sessionManager.stopAllSessions();
 
-    while (!m_sessionManager.isEmpty())
+    // 서비스 이벤트 큐가 비워지고, 모든 세션이 제거될 때까지 대기
+    while ((!m_clientService->isEventQueueEmpty()) ||
+           (!m_sessionManager.isEmpty()))
     {
         processServiceEvents();
         processSessionEvents();
@@ -108,6 +110,7 @@ void DummyClient::close()
         std::this_thread::yield();
     }
 
+    // io 스레드가 처리할 핸들러가 없으면 스레드가 종료되도록 설정
     m_ioThreadPool.reset();
 }
 
@@ -133,14 +136,22 @@ void DummyClient::processServiceEvents()
 
 void DummyClient::handleServiceEvent(net::CloseServiceEvent& event)
 {
-    SPDLOG_INFO("[DummyClient] 서비스 종료 이벤트 처리");
+    assert(m_running.load());
+
+    SPDLOG_INFO("[DummyClient] 서비스 닫기 이벤트 처리");
 
     stop();
 }
 
 void DummyClient::handleServiceEvent(net::ConnectServiceEvent& event)
 {
-    SPDLOG_INFO("[DummyClient] 서비스 연결 성공 이벤트 처리");
+    if (!m_running.load())
+    {
+        SPDLOG_WARN("[DummyClient] 클라이언트가 실행 중이 아닙니다. 서버 연결 이벤트를 건너뜁니다.");
+        return;
+    }
+
+    SPDLOG_INFO("[DummyClient] 서버 연결 이벤트 처리");
 
     auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
     m_sessionManager.addSession(session);
@@ -159,17 +170,28 @@ void DummyClient::processSessionEvents()
         case net::SessionEventType::Receive:
             handleSessionEvent(*static_cast<net::ReceiveSessionEvent*>(event.get()));
             break;
+        default:
+            SPDLOG_WARN("[DummyClient] 알 수 없는 세션 이벤트 타입: {}", static_cast<int>(event->type));
+            assert(false);
+            break;
         }
     }
 }
 
 void DummyClient::handleSessionEvent(net::CloseSessionEvent& event)
 {
-    SPDLOG_INFO("[DummyClient] 세션 종료 이벤트 처리: {}", event.sessionId);
+    SPDLOG_INFO("[DummyClient] 세션 닫기 이벤트 처리: {}", event.sessionId);
+
     m_sessionManager.removeSession(event.sessionId);
 }
 
 void DummyClient::handleSessionEvent(net::ReceiveSessionEvent& event)
 {
-    SPDLOG_INFO("[DummyClient] 세션 수신 이벤트 처리: {}", event.sessionId);
+    if (!m_running.load())
+    {
+        SPDLOG_WARN("[DummyClient] 클라이언트가 실행 중이 아닙니다. 수신 이벤트를 건너뜁니다.");
+        return;
+    }
+
+    SPDLOG_INFO("[DummyClient] 수신 이벤트 처리: {}", event.sessionId);
 }

@@ -121,7 +121,7 @@ namespace net
     void Session::onRead(const asio::error_code& error, size_t bytesRead)
     {
         if (error)  
-        {  
+        {
             handleError(error);  
             return;  
         }
@@ -155,7 +155,7 @@ namespace net
     void Session::onWritten(const asio::error_code& error, size_t bytesWritten)
     {
         if (error)  
-        {  
+        {
             handleError(error);  
             return;  
         }
@@ -219,6 +219,8 @@ namespace net
             return;
         }
 
+        SPDLOG_INFO("[Session {}] 세션 닫기", m_sessionId);
+
         asio::error_code error;
 
         // 모든 비동기 작업을 취소
@@ -257,20 +259,21 @@ namespace net
 
     void SessionManager::stopAllSessions()
     {
+        SPDLOG_INFO("[SessionManager] 모든 세션 중지");
+
         for (const auto& pair : m_sessions)
         {
             pair.second->stop();
         }
-
-        SPDLOG_INFO("[SessionManager] 모든 세션 중지");
     }
 
     void SessionManager::addSession(const SessionPtr& session)  
     {
         assert(session->isRunning() == false);
 
-        m_sessions[session->getSessionId()] = session;
         SPDLOG_INFO("[SessionManager] 세션 추가: {}", session->getSessionId());
+
+        m_sessions[session->getSessionId()] = session;
     }
 
     void SessionManager::removeSession(SessionId sessionId)  
@@ -283,8 +286,9 @@ namespace net
         
         assert(m_sessions[sessionId]->isRunning() == false);
 
-        m_sessions.erase(sessionId);
         SPDLOG_INFO("[SessionManager] 세션 제거: {}", sessionId);
+
+        m_sessions.erase(sessionId);
     }
 
     void SessionManager::removeSession(const SessionPtr& session)  
@@ -295,16 +299,7 @@ namespace net
             return;
         }
 
-        if (m_sessions.find(session->getSessionId()) == m_sessions.end())
-        {
-            SPDLOG_WARN("[SessionManager] 세션 제거 실패: {} (존재하지 않는 세션 ID)", session->getSessionId());
-            return;
-        }
-
-        assert(session->isRunning() == false);
-
-        m_sessions.erase(session->getSessionId());
-        SPDLOG_INFO("[SessionManager] 세션 제거: {}", session->getSessionId());
+        removeSession(session->getSessionId());
     }
 
     SessionPtr SessionManager::findSession(SessionId sessionId) const  

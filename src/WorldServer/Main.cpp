@@ -9,17 +9,17 @@ int main()
     {
         WorldServer server;
         server.start();
-
+        
         char input;
         while (std::cin >> input)
         {
             if (input == 'q' || input == 'Q')
             {
+                ::raise(SIGINT);
                 break;
             }
         }
-
-        server.stop();
+       
         server.join();
     }
 

@@ -15,11 +15,11 @@ int main()
         {
             if (input == 'q' || input == 'Q')
             {
+                ::raise(SIGINT);
                 break;
             }
         }
 
-        client.stop();
         client.join();
     }
 

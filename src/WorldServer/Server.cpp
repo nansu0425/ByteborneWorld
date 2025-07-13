@@ -4,7 +4,8 @@
 WorldServer::WorldServer()
     : m_running(false)
 {
-    m_serverService = net::ServerService::createInstance(m_ioThreadPool.getContext(), 12345);
+    m_serverService = net::ServerService::createInstance(
+        m_ioThreadPool.getContext(), 12345);
 }
 
 void WorldServer::start()
@@ -44,8 +45,6 @@ void WorldServer::stop()
     }
 
     SPDLOG_INFO("[WorldServer] 서버 중지");
-
-    m_serverService->stop();
 }
 
 void WorldServer::join()
@@ -99,9 +98,13 @@ void WorldServer::loop()
 
 void WorldServer::close()
 {
+    SPDLOG_INFO("[WorldServer] 서버 닫기");
+
     m_sessionManager.stopAllSessions();
 
-    while (!m_sessionManager.isEmpty())
+    // 서비스 이벤트 큐가 비워지고, 모든 세션이 제거될 때까지 대기
+    while ((!m_serverService->isEventQueueEmpty()) ||
+           (!m_sessionManager.isEmpty()))
     {
         processServiceEvents();
         processSessionEvents();
@@ -109,6 +112,7 @@ void WorldServer::close()
         std::this_thread::yield();
     }
 
+    // io 스레드가 처리할 핸들러가 없으면 스레드가 종료되도록 설정
     m_ioThreadPool.reset();
 }
 
@@ -134,14 +138,22 @@ void WorldServer::processServiceEvents()
 
 void WorldServer::handleServiceEvent(net::CloseServiceEvent& event)
 {
-    SPDLOG_INFO("[WorldServer] 서비스 종료 이벤트 처리");
+    assert(m_running.load());
+
+    SPDLOG_INFO("[WorldServer] 서비스 닫기 이벤트 처리");
 
     stop();
 }
 
 void WorldServer::handleServiceEvent(net::AcceptServiceEvent& event)
 {
-    SPDLOG_INFO("[WorldServer] 서비스 연결 수락 이벤트 처리");
+    if (!m_running.load())
+    {
+        SPDLOG_WARN("[WorldServer] 서버가 실행 중이 아닙니다. 클라이언트 수락 이벤트를 건너뜁니다.");
+        return;
+    }
+
+    SPDLOG_INFO("[WorldServer] 클라이언트 수락 이벤트 처리");
 
     auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
     m_sessionManager.addSession(session);
@@ -160,17 +172,28 @@ void WorldServer::processSessionEvents()
         case net::SessionEventType::Receive:
             handleSessionEvent(*static_cast<net::ReceiveSessionEvent*>(event.get()));
             break;
+        default:
+            SPDLOG_WARN("[WorldServer] 알 수 없는 세션 이벤트 타입: {}", static_cast<int>(event->type));
+            assert(false);
+            break;
         }
     }
 }
 
 void WorldServer::handleSessionEvent(net::CloseSessionEvent& event)
 {
-    SPDLOG_INFO("[WorldServer] 세션 종료 이벤트 처리: {}", event.sessionId);
+    SPDLOG_INFO("[WorldServer] 세션 닫기 이벤트 처리: {}", event.sessionId);
+
     m_sessionManager.removeSession(event.sessionId);
 }
 
 void WorldServer::handleSessionEvent(net::ReceiveSessionEvent& event)
 {
-    SPDLOG_INFO("[WorldServer] 세션 수신 이벤트 처리: {}", event.sessionId);
+    if (!m_running.load())
+    {
+        SPDLOG_WARN("[WorldServer] 서비스가 실행 중이 아닙니다. 수신 이벤트를 건너뜁니다.");
+        return;
+    }
+
+    SPDLOG_INFO("[WorldServer] 수신 이벤트 처리: {}", event.sessionId);
 }

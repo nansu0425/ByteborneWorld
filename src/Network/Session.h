@@ -64,6 +64,7 @@ namespace net
         SessionPtr findSession(SessionId sessionId) const;
 
         bool isEmpty() const { return m_sessions.empty(); }
+        bool hasSession(SessionId sessionId) const { return m_sessions.find(sessionId) != m_sessions.end(); }
 
     private:
         std::unordered_map<SessionId, SessionPtr> m_sessions;
