@@ -194,4 +194,17 @@ void DummyClient::handleSessionEvent(net::ReceiveSessionEvent& event)
     }
 
     SPDLOG_INFO("[DummyClient] 수신 이벤트 처리: {}", event.sessionId);
+
+    auto session = m_sessionManager.findSession(event.sessionId);
+    if (!session)
+    {
+        SPDLOG_ERROR("[DummyClient] 세션을 찾을 수 없습니다: {}", event.sessionId);
+        assert(false);
+        return;
+    }
+
+    // TODO: 실제 수신 데이터 처리 로직 구현
+
+    // 세션에서 다시 비동기 수신 시작
+    session->receive();
 }

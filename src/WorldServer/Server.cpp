@@ -72,6 +72,7 @@ void WorldServer::loop()
 
         processServiceEvents();
         processSessionEvents();
+        m_sessionManager.broadcast(sendData);
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -196,4 +197,17 @@ void WorldServer::handleSessionEvent(net::ReceiveSessionEvent& event)
     }
 
     SPDLOG_INFO("[WorldServer] 수신 이벤트 처리: {}", event.sessionId);
+
+    auto session = m_sessionManager.findSession(event.sessionId);
+    if (!session)
+    {
+        SPDLOG_ERROR("[WorldServer] 세션을 찾을 수 없습니다: {}", event.sessionId);
+        assert(false);
+        return;
+    }
+
+    // TODO: 수신된 데이터를 처리하는 로직 추가
+
+    // 세션에서 다시 비동기 수신 시작
+    session->receive();
 }
