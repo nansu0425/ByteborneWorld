@@ -10,6 +10,7 @@ int main()
         DummyClient client;
         client.start();
 
+#ifdef _DEBUG
         char input;
         while (std::cin >> input)
         {
@@ -19,6 +20,7 @@ int main()
                 break;
             }
         }
+#endif // _DEBUG
 
         client.join();
     }

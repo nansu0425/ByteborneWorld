@@ -9,7 +9,8 @@ int main()
     {
         WorldServer server;
         server.start();
-        
+
+#ifdef _DEBUG
         char input;
         while (std::cin >> input)
         {
@@ -19,6 +20,7 @@ int main()
                 break;
             }
         }
+#endif // _DEBUG
        
         server.join();
     }
