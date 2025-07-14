@@ -71,9 +71,9 @@ namespace net
         : public Service
     {
     public:
-        ClientService(asio::io_context& ioContext, const ResolveTarget& resolveTarget);
+        ClientService(asio::io_context& ioContext, const ResolveTarget& resolveTarget, size_t connectCount);
 
-        static ClientServicePtr createInstance(asio::io_context& ioContext, const ResolveTarget& resolveTarget);
+        static ClientServicePtr createInstance(asio::io_context& ioContext, const ResolveTarget& resolveTarget, size_t connectCount);
         ClientServicePtr getInstance() { return std::static_pointer_cast<ClientService>(shared_from_this()); }
 
         virtual void start() override;
@@ -82,8 +82,8 @@ namespace net
     private:
         void asyncResolve();
         void onResolved(const asio::error_code& error, const asio::ip::tcp::resolver::results_type& results);
-        void asyncConnect();
-        void onConnected(const asio::error_code& error);
+        void asyncConnect(size_t socketIndex);
+        void onConnected(const asio::error_code& error, size_t socketIndex);
 
         virtual void handleError(const asio::error_code& error) override;
         virtual void close() override;
@@ -92,6 +92,6 @@ namespace net
         ResolveTarget m_resolveTarget;
         asio::ip::tcp::resolver m_resolver;
         asio::ip::tcp::resolver::results_type m_resolveResults;
-        asio::ip::tcp::socket m_socket;
+        std::vector<asio::ip::tcp::socket> m_sockets;
     };
 }

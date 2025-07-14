@@ -5,7 +5,7 @@ DummyClient::DummyClient()
     : m_running(false)
 {
     m_clientService = net::ClientService::createInstance(
-        m_ioThreadPool.getContext(), net::ResolveTarget{"localhost", "12345"});
+        m_ioThreadPool.getContext(), net::ResolveTarget{"localhost", "12345"}, 5);
 }
 
 void DummyClient::start()

@@ -29,7 +29,7 @@ namespace net
                 }
                 else
                 {
-                    SPDLOG_ERROR("[Service] 중지 신호 처리 중 에러 발생: {}", error.value());
+                    handleError(error);
                 }
 
                 // 서비스 중지
@@ -164,11 +164,27 @@ namespace net
 
         SPDLOG_INFO("[ServerService] 서비스 닫기");
 
-        m_stopSignals.cancel();
+        asio::error_code error;
+
+        m_stopSignals.cancel(error);
+        if (error)
+        {
+            handleError(error);
+        }
+
         if (m_acceptor.is_open())
         {
-            m_acceptor.cancel();
-            m_acceptor.close();
+            m_acceptor.cancel(error);
+            if (error)
+            {
+                handleError(error);
+            }
+
+            m_acceptor.close(error);
+            if (error)
+            {
+                handleError(error);
+            }
         }
 
         // 서비스 이벤트 큐에 닫기 이벤트 추가
@@ -176,16 +192,23 @@ namespace net
         m_eventQueue.push(std::move(event));
     }
 
-    ClientService::ClientService(asio::io_context& ioContext, const ResolveTarget& resolveTarget)
+    ClientService::ClientService(asio::io_context& ioContext, const ResolveTarget& resolveTarget, size_t connectCount)
         : Service(ioContext)
         , m_resolveTarget(resolveTarget)
         , m_resolver(ioContext)
-        , m_socket(ioContext)
-    {}
-
-    ClientServicePtr ClientService::createInstance(asio::io_context& ioContext, const ResolveTarget& resolveTarget)
     {
-        auto service = std::make_shared<ClientService>(ioContext, resolveTarget);
+        assert(connectCount > 0);
+
+        m_sockets.reserve(connectCount);
+        for (size_t i = 0; i < connectCount; ++i)
+        {
+            m_sockets.emplace_back(ioContext);
+        }
+    }
+
+    ClientServicePtr ClientService::createInstance(asio::io_context& ioContext, const ResolveTarget& resolveTarget, size_t connectCount)
+    {
+        auto service = std::make_shared<ClientService>(ioContext, resolveTarget, connectCount);
         service->asyncWaitForStopSignals();
 
         return service;
@@ -256,7 +279,12 @@ namespace net
             }
 
             m_resolveResults = results;
-            asyncConnect();
+
+            // 비동기 연결 시작
+            for (size_t i = 0; i < m_sockets.size(); ++i)
+            {
+                asyncConnect(i);
+            }
         }
         else
         {
@@ -264,7 +292,7 @@ namespace net
         }
     }
 
-    void ClientService::asyncConnect()
+    void ClientService::asyncConnect(size_t socketIndex)
     {
         if (!m_running.load())
         {
@@ -272,24 +300,24 @@ namespace net
         }
 
         asio::async_connect(
-            m_socket, m_resolveResults,
+            m_sockets[socketIndex], m_resolveResults,
             asio::bind_executor(
                 m_strand,
-                [this, self = shared_from_this()]
+                [this, self = shared_from_this(), socketIndex]
                 (const asio::error_code& error, const asio::ip::tcp::endpoint& endpoint)
                 {
-                    onConnected(error);
+                    onConnected(error, socketIndex);
                 }));
     }
 
-    void ClientService::onConnected(const asio::error_code& error)
+    void ClientService::onConnected(const asio::error_code& error, size_t socketIndex)
     {
         if (!error)
         {
             SPDLOG_INFO("[ClientService] 서버 연결: {}:{}", m_resolveTarget.host, m_resolveTarget.service);
 
             // 이벤트 큐에 서버 연결 이벤트 추가
-            ServiceEventPtr event = std::make_shared<ConnectServiceEvent>(std::move(m_socket));
+            ServiceEventPtr event = std::make_shared<ConnectServiceEvent>(std::move(m_sockets[socketIndex]));
             m_eventQueue.push(std::move(event));
         }
         else
@@ -353,12 +381,34 @@ namespace net
 
         SPDLOG_INFO("[ClientService] 서비스 닫기");
 
-        m_stopSignals.cancel();
-        m_resolver.cancel();
-        if (m_socket.is_open())
+        asio::error_code error;
+
+        m_stopSignals.cancel(error);
+        if (error)
         {
-            m_socket.cancel();
-            m_socket.close();
+            handleError(error);
+        }
+
+        m_resolver.cancel();
+
+        for (auto& socket : m_sockets)
+        {
+            if (socket.is_open())
+            {
+                // 모든 비동기 작업을 취소
+                socket.cancel(error);
+                if (error)
+                {
+                    handleError(error);
+                }
+
+                // 소켓 닫기
+                socket.close(error);
+                if (error)
+                {
+                    handleError(error);
+                }
+            }
         }
 
         // 서비스 이벤트 큐에 닫기 이벤트 추가
