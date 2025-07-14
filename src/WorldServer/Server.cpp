@@ -24,12 +24,13 @@ void WorldServer::start()
             try
             {
                 loop();
-                close();
             }
             catch (const std::exception& e)
             {
                 SPDLOG_ERROR("[WorldServer] 메인 스레드 오류: {}", e.what());
             }
+
+            close();
         });
     m_ioThreadPool.run();
     
