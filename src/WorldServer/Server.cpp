@@ -21,15 +21,7 @@ void WorldServer::start()
     m_mainThread = std::thread(
         [this]()
         {
-            try
-            {
-                loop();
-            }
-            catch (const std::exception& e)
-            {
-                SPDLOG_ERROR("[WorldServer] 메인 스레드 오류: {}", e.what());
-            }
-
+            loop();
             close();
         });
     m_ioThreadPool.run();
@@ -100,6 +92,9 @@ void WorldServer::loop()
 
 void WorldServer::close()
 {
+    // 실행 중이 아닌 상태에서 close가 호출돼야 한다
+    assert(m_running.load() == false);
+
     SPDLOG_INFO("[WorldServer] 서버 닫기");
 
     m_sessionManager.stopAllSessions();
