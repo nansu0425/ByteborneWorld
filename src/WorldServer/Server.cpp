@@ -16,7 +16,7 @@ void WorldServer::start()
         return;
     }
 
-    SPDLOG_INFO("[WorldServer] 서버 시작");
+    spdlog::info("[WorldServer] 서버 시작");
 
     m_mainThread = std::thread(
         [this]()
@@ -37,7 +37,7 @@ void WorldServer::stop()
         return;
     }
 
-    SPDLOG_INFO("[WorldServer] 서버 중지");
+    spdlog::info("[WorldServer] 서버 중지");
 }
 
 void WorldServer::join()
@@ -48,7 +48,7 @@ void WorldServer::join()
         m_mainThread.join();
     }
 
-    SPDLOG_INFO("[WorldServer] 서버 종료");
+    spdlog::info("[WorldServer] 서버 종료");
 }
 
 void WorldServer::loop()
@@ -74,7 +74,7 @@ void WorldServer::loop()
         auto tickCountElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - lastTickCountTime);
         if (std::chrono::seconds(1) <= tickCountElapsed)
         {
-            SPDLOG_INFO("[WorldServer] 틱 카운트: {}", tickCount);
+            spdlog::debug("[WorldServer] 틱 카운트: {}", tickCount);
             lastTickCountTime = end;
             tickCount = 0;
         }
@@ -95,7 +95,7 @@ void WorldServer::close()
     // 실행 중이 아닌 상태에서 close가 호출돼야 한다
     assert(m_running.load() == false);
 
-    SPDLOG_INFO("[WorldServer] 서버 닫기");
+    spdlog::info("[WorldServer] 서버 닫기");
 
     m_sessionManager.stopAllSessions();
 
@@ -126,7 +126,7 @@ void WorldServer::processServiceEvents()
             handleServiceEvent(*static_cast<net::AcceptServiceEvent*>(event.get()));
             break;
         default:
-            SPDLOG_WARN("[WorldServer] 알 수 없는 서비스 이벤트 타입: {}", static_cast<int>(event->type));
+            spdlog::error("[WorldServer] 알 수 없는 서비스 이벤트 타입: {}", static_cast<int>(event->type));
             assert(false);
             break;
         }
@@ -137,24 +137,24 @@ void WorldServer::handleServiceEvent(net::CloseServiceEvent& event)
 {
     assert(m_running.load());
 
-    SPDLOG_INFO("[WorldServer] 서비스 닫기 이벤트 처리");
-
     stop();
+
+    spdlog::debug("[WorldServer] 서비스 닫기 이벤트 처리");
 }
 
 void WorldServer::handleServiceEvent(net::AcceptServiceEvent& event)
 {
     if (!m_running.load())
     {
-        SPDLOG_WARN("[WorldServer] 서버가 실행 중이 아닙니다. 클라이언트 수락 이벤트를 건너뜁니다.");
+        spdlog::debug("[WorldServer] 서버가 실행 중이 아닙니다. 클라이언트 수락 이벤트를 건너뜁니다.");
         return;
     }
-
-    SPDLOG_INFO("[WorldServer] 클라이언트 수락 이벤트 처리");
 
     auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
     m_sessionManager.addSession(session);
     session->start();
+
+    spdlog::debug("[WorldServer] 클라이언트 수락 이벤트 처리");
 }
 
 void WorldServer::processSessionEvents()
@@ -170,7 +170,7 @@ void WorldServer::processSessionEvents()
             handleSessionEvent(*static_cast<net::ReceiveSessionEvent*>(event.get()));
             break;
         default:
-            SPDLOG_WARN("[WorldServer] 알 수 없는 세션 이벤트 타입: {}", static_cast<int>(event->type));
+            spdlog::error("[WorldServer] 알 수 없는 세션 이벤트 타입: {}", static_cast<int>(event->type));
             assert(false);
             break;
         }
@@ -179,25 +179,23 @@ void WorldServer::processSessionEvents()
 
 void WorldServer::handleSessionEvent(net::CloseSessionEvent& event)
 {
-    SPDLOG_INFO("[WorldServer] 세션 닫기 이벤트 처리: {}", event.sessionId);
-
     m_sessionManager.removeSession(event.sessionId);
+
+    spdlog::debug("[WorldServer] 세션 닫기 이벤트 처리: {}", event.sessionId);
 }
 
 void WorldServer::handleSessionEvent(net::ReceiveSessionEvent& event)
 {
     if (!m_running.load())
     {
-        SPDLOG_WARN("[WorldServer] 서비스가 실행 중이 아닙니다. 수신 이벤트를 건너뜁니다.");
+        spdlog::debug("[WorldServer] 서비스가 실행 중이 아닙니다. 수신 이벤트를 건너뜁니다.");
         return;
     }
-
-    SPDLOG_INFO("[WorldServer] 수신 이벤트 처리: {}", event.sessionId);
 
     auto session = m_sessionManager.findSession(event.sessionId);
     if (!session)
     {
-        SPDLOG_ERROR("[WorldServer] 세션을 찾을 수 없습니다: {}", event.sessionId);
+        spdlog::error("[WorldServer] 세션을 찾을 수 없습니다: {}", event.sessionId);
         assert(false);
         return;
     }
@@ -206,4 +204,6 @@ void WorldServer::handleSessionEvent(net::ReceiveSessionEvent& event)
 
     // 세션에서 다시 비동기 수신 시작
     session->receive();
+
+    spdlog::debug("[WorldServer] 수신 이벤트 처리: {}", event.sessionId);
 }

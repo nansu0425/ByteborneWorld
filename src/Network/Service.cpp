@@ -25,14 +25,13 @@ namespace net
             {
                 if (!error)
                 {
-                    SPDLOG_INFO("[Service] 중지 신호 수신: {}", signalNumber);
+                    spdlog::debug("[Service] 중지 신호 수신: {}", signalNumber);
                 }
                 else
                 {
                     handleError(error);
                 }
 
-                // 서비스 중지
                 stop();
             });
     }
@@ -58,7 +57,7 @@ namespace net
             return;
         }
 
-        SPDLOG_INFO("[ServerService] 서비스 시작: {}", m_acceptor.local_endpoint().port());
+        spdlog::info("[ServerService] 서비스 시작: {}", m_acceptor.local_endpoint().port());
 
         asio::post(
             m_strand,
@@ -76,7 +75,7 @@ namespace net
             return;
         }
 
-        SPDLOG_INFO("[ServerService] 서비스 중지");
+        spdlog::info("[ServerService] 서비스 중지");
 
         asio::post(
             m_strand,
@@ -108,7 +107,7 @@ namespace net
         if (!error)
         {
             const auto& remoteEndpoint = socket.remote_endpoint();
-            SPDLOG_INFO("[ServerService] 클라이언트 수락: {}:{}", remoteEndpoint.address().to_string(), remoteEndpoint.port());
+            spdlog::debug("[ServerService] 클라이언트 수락: {}:{}", remoteEndpoint.address().to_string(), remoteEndpoint.port());
 
             // 이벤트 큐에 클라이언트 수락 이벤트 추가
             ServiceEventPtr event = std::make_shared<AcceptServiceEvent>(std::move(socket));
@@ -128,30 +127,30 @@ namespace net
         switch (error.value())
         {
         case asio::error::operation_aborted:
-            SPDLOG_WARN("[ServerService] operation_aborted");
+            spdlog::debug("[ServerService] operation_aborted");
             break;
         case asio::error::invalid_argument:
-            SPDLOG_ERROR("[ServerService] invalid_argument");
+            spdlog::error("[ServerService] invalid_argument");
             break;
         case asio::error::connection_aborted:
-            SPDLOG_WARN("[ServerService] connection_aborted");
+            spdlog::debug("[ServerService] connection_aborted");
             break;
         case asio::error::connection_reset:
-            SPDLOG_WARN("[ServerService] connection_reset");
+            spdlog::debug("[ServerService] connection_reset");
             break;
         case asio::error::timed_out:
-            SPDLOG_WARN("[ServerService] timed_out");
+            spdlog::debug("[ServerService] timed_out");
             break;
         case asio::error::connection_refused:
-            SPDLOG_WARN("[ServerService] connection_refused");
+            spdlog::debug("[ServerService] connection_refused");
             break;
         case asio::error::bad_descriptor:
-            SPDLOG_ERROR("[ServerService] bad_descriptor");
+            spdlog::error("[ServerService] bad_descriptor");
             assert(false);
             stop();
             break;
         default:
-            SPDLOG_ERROR("[ServerService] 알 수 없는 에러: {}", error.value());
+            spdlog::error("[ServerService] 알 수 없는 에러: {}", error.value());
             assert(false);
             stop();
             break;
@@ -162,7 +161,7 @@ namespace net
     {
         assert(!m_running.load());
 
-        SPDLOG_INFO("[ServerService] 서비스 닫기");
+        spdlog::info("[ServerService] 서비스 닫기");
 
         asio::error_code error;
 
@@ -222,7 +221,7 @@ namespace net
             return;
         }
 
-        SPDLOG_INFO("[ClientService] 서비스 시작");
+        spdlog::info("[ClientService] 서비스 시작");
 
         asio::post(
             m_strand,
@@ -240,7 +239,7 @@ namespace net
             return;
         }
 
-        SPDLOG_INFO("[ClientService] 서비스 중지");
+        spdlog::info("[ClientService] 서비스 중지");
 
         asio::post(
             m_strand,
@@ -275,7 +274,7 @@ namespace net
             for (const auto& entry : results)
             {
                 const auto& endpoint = entry.endpoint();
-                SPDLOG_INFO("[ClientService] 엔드포인트: {}:{}", endpoint.address().to_string(), endpoint.port());
+                spdlog::debug("[ClientService] 엔드포인트: {}:{}", endpoint.address().to_string(), endpoint.port());
             }
 
             m_resolveResults = results;
@@ -314,7 +313,7 @@ namespace net
     {
         if (!error)
         {
-            SPDLOG_INFO("[ClientService] 서버 연결: {}:{}", m_resolveTarget.host, m_resolveTarget.service);
+            spdlog::debug("[ClientService] 서버 연결: {}:{}", m_resolveTarget.host, m_resolveTarget.service);
 
             // 이벤트 큐에 서버 연결 이벤트 추가
             ServiceEventPtr event = std::make_shared<ConnectServiceEvent>(std::move(m_sockets[socketIndex]));
@@ -331,44 +330,44 @@ namespace net
         switch (error.value())
         {
         case asio::error::operation_aborted:
-            SPDLOG_WARN("[ClientService] operation_aborted");
+            spdlog::debug("[ClientService] operation_aborted");
             break;
         case asio::error::host_not_found:
-            SPDLOG_ERROR("[ClientService] host_not_found");
+            spdlog::error("[ClientService] host_not_found");
             stop();
             break;
         case asio::error::service_not_found:
-            SPDLOG_ERROR("[ClientService] service_not_found");
+            spdlog::error("[ClientService] service_not_found");
             stop();
             break;
         case asio::error::connection_refused:
-            SPDLOG_ERROR("[ClientService] connection_refused");
+            spdlog::error("[ClientService] connection_refused");
             stop();
             break;
         case asio::error::timed_out:
-            SPDLOG_ERROR("[ClientService] timed_out");
+            spdlog::error("[ClientService] timed_out");
             stop();
             break;
         case asio::error::network_unreachable:
-            SPDLOG_ERROR("[ClientService] network_unreachable");
+            spdlog::error("[ClientService] network_unreachable");
             stop();
             break;
         case asio::error::connection_aborted:
-            SPDLOG_ERROR("[ClientService] connection_aborted");
+            spdlog::error("[ClientService] connection_aborted");
             stop();
             break;
         case asio::error::already_connected:
-            SPDLOG_ERROR("[ClientService] already_connected");
+            spdlog::error("[ClientService] already_connected");
             assert(false);
             stop();
             break;
         case asio::error::bad_descriptor:
-            SPDLOG_ERROR("[ClientService] bad_descriptor");
+            spdlog::error("[ClientService] bad_descriptor");
             assert(false);
             stop();
             break;
         default:
-            SPDLOG_ERROR("[ClientService] 알 수 없는 에러: {}", error.value());
+            spdlog::error("[ClientService] 알 수 없는 에러: {}", error.value());
             assert(false);
             stop();
             break;
@@ -379,7 +378,7 @@ namespace net
     {
         assert(!m_running.load());
 
-        SPDLOG_INFO("[ClientService] 서비스 닫기");
+        spdlog::info("[ClientService] 서비스 닫기");
 
         asio::error_code error;
 

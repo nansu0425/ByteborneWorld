@@ -16,7 +16,7 @@ void DummyClient::start()
         return;
     }
 
-    SPDLOG_INFO("[DummyClient] 클라이언트 시작");
+    spdlog::info("[DummyClient] 클라이언트 시작");
 
     m_mainThread = std::thread(
         [this]()
@@ -37,7 +37,7 @@ void DummyClient::stop()
         return;
     }
 
-    SPDLOG_INFO("[DummyClient] 클라이언트 중지");
+    spdlog::info("[DummyClient] 클라이언트 중지");
 }
 
 void DummyClient::join()
@@ -48,7 +48,7 @@ void DummyClient::join()
         m_mainThread.join();
     }
 
-    SPDLOG_INFO("[DummyClient] 클라이언트 종료");
+    spdlog::info("[DummyClient] 클라이언트 종료");
 }
 
 void DummyClient::loop()
@@ -71,7 +71,7 @@ void DummyClient::loop()
         auto tickCountElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - lastTickCountTime);
         if (std::chrono::seconds(1) <= tickCountElapsed)
         {
-            SPDLOG_INFO("[DummyClient] 틱 카운트: {}", tickCount);
+            spdlog::debug("[DummyClient] 틱 카운트: {}", tickCount);
             lastTickCountTime = end;
             tickCount = 0;
         }
@@ -92,7 +92,7 @@ void DummyClient::close()
     // 실행 중이 아닌 상태에서 close가 호출돼야 한다
     assert(m_running.load() == false);
 
-    SPDLOG_INFO("[DummyClient] 클라이언트 닫기");
+    spdlog::info("[DummyClient] 클라이언트 닫기");
 
     m_sessionManager.stopAllSessions();
 
@@ -123,7 +123,7 @@ void DummyClient::processServiceEvents()
             handleServiceEvent(*static_cast<net::ConnectServiceEvent*>(event.get()));
             break;
         default:
-            SPDLOG_WARN("[DummyClient] 알 수 없는 서비스 이벤트 타입: {}", static_cast<int>(event->type));
+            spdlog::error("[DummyClient] 알 수 없는 서비스 이벤트 타입: {}", static_cast<int>(event->type));
             assert(false);
             break;
         }
@@ -134,24 +134,24 @@ void DummyClient::handleServiceEvent(net::CloseServiceEvent& event)
 {
     assert(m_running.load());
 
-    SPDLOG_INFO("[DummyClient] 서비스 닫기 이벤트 처리");
-
     stop();
+
+    spdlog::debug("[DummyClient] 서비스 닫기 이벤트 처리");
 }
 
 void DummyClient::handleServiceEvent(net::ConnectServiceEvent& event)
 {
     if (!m_running.load())
     {
-        SPDLOG_WARN("[DummyClient] 클라이언트가 실행 중이 아닙니다. 서버 연결 이벤트를 건너뜁니다.");
+        spdlog::debug("[DummyClient] 클라이언트가 실행 중이 아닙니다. 서버 연결 이벤트를 건너뜁니다.");
         return;
     }
-
-    SPDLOG_INFO("[DummyClient] 서버 연결 이벤트 처리");
 
     auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
     m_sessionManager.addSession(session);
     session->start();
+
+    spdlog::debug("[DummyClient] 서버 연결 이벤트 처리");
 }
 
 void DummyClient::processSessionEvents()
@@ -167,7 +167,7 @@ void DummyClient::processSessionEvents()
             handleSessionEvent(*static_cast<net::ReceiveSessionEvent*>(event.get()));
             break;
         default:
-            SPDLOG_WARN("[DummyClient] 알 수 없는 세션 이벤트 타입: {}", static_cast<int>(event->type));
+            spdlog::error("[DummyClient] 알 수 없는 세션 이벤트 타입: {}", static_cast<int>(event->type));
             assert(false);
             break;
         }
@@ -176,25 +176,23 @@ void DummyClient::processSessionEvents()
 
 void DummyClient::handleSessionEvent(net::CloseSessionEvent& event)
 {
-    SPDLOG_INFO("[DummyClient] 세션 닫기 이벤트 처리: {}", event.sessionId);
-
     m_sessionManager.removeSession(event.sessionId);
+
+    spdlog::debug("[DummyClient] 세션 닫기 이벤트 처리: {}", event.sessionId);
 }
 
 void DummyClient::handleSessionEvent(net::ReceiveSessionEvent& event)
 {
     if (!m_running.load())
     {
-        SPDLOG_WARN("[DummyClient] 클라이언트가 실행 중이 아닙니다. 수신 이벤트를 건너뜁니다.");
+        spdlog::debug("[DummyClient] 클라이언트가 실행 중이 아닙니다. 수신 이벤트를 건너뜁니다.");
         return;
     }
-
-    SPDLOG_INFO("[DummyClient] 수신 이벤트 처리: {}", event.sessionId);
 
     auto session = m_sessionManager.findSession(event.sessionId);
     if (!session)
     {
-        SPDLOG_ERROR("[DummyClient] 세션을 찾을 수 없습니다: {}", event.sessionId);
+        spdlog::error("[DummyClient] 세션을 찾을 수 없습니다: {}", event.sessionId);
         assert(false);
         return;
     }
@@ -203,4 +201,6 @@ void DummyClient::handleSessionEvent(net::ReceiveSessionEvent& event)
 
     // 세션에서 다시 비동기 수신 시작
     session->receive();
+
+    spdlog::debug("[DummyClient] 수신 이벤트 처리: {}", event.sessionId);
 }

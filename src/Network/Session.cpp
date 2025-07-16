@@ -11,12 +11,12 @@ namespace net
         , m_eventQueue(eventQueue)
         , m_strand(asio::make_strand(m_socket.get_executor()))
     {
-        SPDLOG_INFO("[Session {}] 세션 생성", m_sessionId);
+        spdlog::debug("[Session {}] 세션 생성", m_sessionId);
     }
 
     Session::~Session()
     {
-        SPDLOG_INFO("[Session {}] 세션 소멸", m_sessionId);
+        spdlog::debug("[Session {}] 세션 소멸", m_sessionId);
     }
 
     SessionPtr Session::createInstance(asio::ip::tcp::socket&& socket, SessionEventQueue& eventQueue)
@@ -34,7 +34,7 @@ namespace net
             return;
         }
 
-        SPDLOG_INFO("[Session {}] 세션 시작", m_sessionId);
+        spdlog::debug("[Session {}] 세션 시작", m_sessionId);
 
         asio::post(
             m_strand,
@@ -53,7 +53,7 @@ namespace net
             return;
         }
 
-        SPDLOG_INFO("[Session {}] 세션 중지", m_sessionId);
+        spdlog::debug("[Session {}] 세션 중지", m_sessionId);
 
         asio::post(
             m_strand,
@@ -102,7 +102,7 @@ namespace net
 
     void Session::asyncRead()  
     {
-        if (!m_running)  
+        if (!m_running.load())  
         {
             return;  
         }
@@ -126,7 +126,7 @@ namespace net
             return;  
         }
 
-        SPDLOG_INFO("[Session {}] bytesRead: {}", m_sessionId, bytesRead);
+        spdlog::debug("[Session {}] bytesRead: {}", m_sessionId, bytesRead);
 
         // 이벤트 큐에 receive 이벤트 추가
         SessionEventPtr event = std::make_shared<ReceiveSessionEvent>(m_sessionId);
@@ -135,7 +135,7 @@ namespace net
 
     void Session::asyncWrite()
     {
-        if (!m_running)  
+        if (!m_running.load())  
         {
             return;  
         }
@@ -160,7 +160,7 @@ namespace net
             return;  
         }
 
-        SPDLOG_INFO("[Session {}] bytesWritten: {}", m_sessionId, bytesWritten);
+        spdlog::debug("[Session {}] bytesWritten: {}", m_sessionId, bytesWritten);
         
         m_sendQueue.pop_front();
         if (!m_sendQueue.empty())
@@ -175,34 +175,34 @@ namespace net
         switch (error.value())
         {
         case asio::error::operation_aborted:
-            SPDLOG_WARN("[Session {}] operation_aborted", m_sessionId);
+            spdlog::debug("[Session {}] operation_aborted", m_sessionId);
             break;
         case asio::error::connection_reset:
-            SPDLOG_ERROR("[Session {}] connection_reset", m_sessionId);
+            spdlog::debug("[Session {}] connection_reset", m_sessionId);
             stop();
             break;
         case asio::error::connection_aborted:
-            SPDLOG_ERROR("[Session {}] connection_aborted", m_sessionId);
+            spdlog::debug("[Session {}] connection_aborted", m_sessionId);
             stop();
             break;
         case asio::error::timed_out:
-            SPDLOG_ERROR("[Session {}] timed_out", m_sessionId);
+            spdlog::debug("[Session {}] timed_out", m_sessionId);
             stop();
             break;
         case asio::error::not_connected:
-            SPDLOG_ERROR("[Session {}] not_connected", m_sessionId);
+            spdlog::error("[Session {}] not_connected", m_sessionId);
             assert(!m_running.load());
             break;
         case asio::error::eof:
-            SPDLOG_INFO("[Session {}] eof", m_sessionId);
+            spdlog::debug("[Session {}] eof", m_sessionId);
             stop();
             break;
         case asio::error::bad_descriptor:
-            SPDLOG_ERROR("[Session {}] bad_descriptor", m_sessionId);
+            spdlog::error("[Session {}] bad_descriptor", m_sessionId);
             assert(!m_running.load());
             break;
         default:
-            SPDLOG_ERROR("[Session {}] 알 수 없는 에러: {}", m_sessionId, error.value());
+            spdlog::error("[Session {}] 알 수 없는 에러: {}", m_sessionId, error.value());
             assert(false);
             stop();
             break;
@@ -212,14 +212,9 @@ namespace net
     void Session::close()  
     {
         assert(!m_running.load());
+        assert(m_socket.is_open());
 
-        if (!m_socket.is_open())
-        {
-            SPDLOG_WARN("[Session {}] 소켓이 이미 닫혀 있습니다.", m_sessionId);
-            return;
-        }
-
-        SPDLOG_INFO("[Session {}] 세션 닫기", m_sessionId);
+        spdlog::debug("[Session {}] 세션 닫기", m_sessionId);
 
         asio::error_code error;
 
@@ -271,33 +266,26 @@ namespace net
     {
         assert(session->isRunning() == false);
 
-        SPDLOG_INFO("[SessionManager] 세션 추가: {}", session->getSessionId());
-
         m_sessions[session->getSessionId()] = session;
+        spdlog::debug("[SessionManager] 세션 추가: {}", session->getSessionId());
     }
 
     void SessionManager::removeSession(SessionId sessionId)  
     {
-        if (m_sessions.find(sessionId) == m_sessions.end())
+        if (hasSession(sessionId) == false)
         {
-            SPDLOG_WARN("[SessionManager] 세션 제거 실패: {} (존재하지 않는 세션 ID)", sessionId);
             return;
         }
-        
+
         assert(m_sessions[sessionId]->isRunning() == false);
 
-        SPDLOG_INFO("[SessionManager] 세션 제거: {}", sessionId);
-
         m_sessions.erase(sessionId);
+        spdlog::debug("[SessionManager] 세션 제거: {}", sessionId);
     }
 
     void SessionManager::removeSession(const SessionPtr& session)  
     {
-        if (session == nullptr)
-        {
-            SPDLOG_WARN("[SessionManager] 세션 제거 실패: nullptr");
-            return;
-        }
+        assert(session);
 
         removeSession(session->getSessionId());
     }
