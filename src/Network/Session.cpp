@@ -192,6 +192,7 @@ namespace net
         case asio::error::not_connected:
             spdlog::error("[Session {}] not_connected", m_sessionId);
             assert(!m_running.load());
+            stop();
             break;
         case asio::error::eof:
             spdlog::debug("[Session {}] eof", m_sessionId);
@@ -200,6 +201,7 @@ namespace net
         case asio::error::bad_descriptor:
             spdlog::error("[Session {}] bad_descriptor", m_sessionId);
             assert(!m_running.load());
+            stop();
             break;
         default:
             spdlog::error("[Session {}] 알 수 없는 에러: {}", m_sessionId, error.value());
@@ -254,12 +256,12 @@ namespace net
 
     void SessionManager::stopAllSessions()
     {
-        SPDLOG_INFO("[SessionManager] 모든 세션 중지");
-
         for (const auto& pair : m_sessions)
         {
             pair.second->stop();
         }
+
+        spdlog::debug("[SessionManager] 모든 세션 중지");
     }
 
     void SessionManager::addSession(const SessionPtr& session)  
