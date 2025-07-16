@@ -3,6 +3,7 @@
 #include <asio.hpp>
 #include <deque>
 #include <memory>
+#include "Buffer.h"
 
 namespace net
 {
@@ -14,9 +15,6 @@ namespace net
     class Session
         : public std::enable_shared_from_this<Session>
     {
-    public:
-        using ReceiveBuffer = std::array<uint8_t, 4096>;
-
     public:
         Session(SessionId sessionId, asio::ip::tcp::socket&& socket, SessionEventQueue& eventQueue);
         ~Session();
@@ -31,7 +29,7 @@ namespace net
 
         bool isRunning() const { return m_running.load(); }
         SessionId getSessionId() const { return m_sessionId; }
-        const ReceiveBuffer& getReceiveBuffer() const { return m_receiveBuffer; }
+        ReceiveBuffer& getReceiveBuffer() { return m_receiveBuffer; }
 
     private:
         void asyncRead();
@@ -49,7 +47,7 @@ namespace net
         SessionEventQueue& m_eventQueue;
         asio::strand<asio::ip::tcp::socket::executor_type> m_strand;
         std::deque<std::vector<uint8_t>> m_sendQueue;
-        ReceiveBuffer m_receiveBuffer = {};
+        ReceiveBuffer m_receiveBuffer;
     };
 
     class SessionManager

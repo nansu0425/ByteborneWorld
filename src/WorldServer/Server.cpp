@@ -200,7 +200,12 @@ void WorldServer::handleSessionEvent(net::ReceiveSessionEvent& event)
         return;
     }
 
+    auto& receiveBuffer = session->getReceiveBuffer();
+    spdlog::debug("[WorldServer] 세션 {}에서 수신된 데이터 크기: {}", event.sessionId, receiveBuffer.getDataSize());
+
     // TODO: 수신된 데이터를 처리하는 로직 추가
+
+    receiveBuffer.onRead(receiveBuffer.getDataSize());
 
     // 세션에서 다시 비동기 수신 시작
     session->receive();

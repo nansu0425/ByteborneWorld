@@ -197,7 +197,12 @@ void DummyClient::handleSessionEvent(net::ReceiveSessionEvent& event)
         return;
     }
 
+    auto& receiveBuffer = session->getReceiveBuffer();
+    spdlog::debug("[DummyClient] 세션 {}에서 수신된 데이터 크기: {}", event.sessionId, receiveBuffer.getDataSize());
+
     // TODO: 실제 수신 데이터 처리 로직 구현
+
+    receiveBuffer.onRead(receiveBuffer.getDataSize());
 
     // 세션에서 다시 비동기 수신 시작
     session->receive();

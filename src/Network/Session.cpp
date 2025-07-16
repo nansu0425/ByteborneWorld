@@ -108,7 +108,9 @@ namespace net
         }
 
         m_socket.async_read_some(
-            asio::buffer(m_receiveBuffer),
+            asio::buffer(
+                m_receiveBuffer.getWritePtr(),
+                m_receiveBuffer.getUnwrittenSize()),
             asio::bind_executor(
                 m_strand,
                 [this, self = shared_from_this()]
@@ -126,7 +128,7 @@ namespace net
             return;  
         }
 
-        spdlog::debug("[Session {}] bytesRead: {}", m_sessionId, bytesRead);
+        m_receiveBuffer.onWritten(bytesRead);
 
         // 이벤트 큐에 receive 이벤트 추가
         SessionEventPtr event = std::make_shared<ReceiveSessionEvent>(m_sessionId);
@@ -159,8 +161,6 @@ namespace net
             handleError(error);  
             return;  
         }
-
-        spdlog::debug("[Session {}] bytesWritten: {}", m_sessionId, bytesWritten);
         
         m_sendQueue.pop_front();
         if (!m_sendQueue.empty())
