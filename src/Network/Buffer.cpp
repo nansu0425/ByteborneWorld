@@ -40,7 +40,7 @@ namespace net
                  (getUnwrittenSize() < m_size))
         {
             // 읽기 오프셋이 0이 아니고, 쓰기 가능한 공간이 m_size보다 작으면 데이터 앞으로 이동
-            std::memmove(m_buffer.data(), getReadPtr(), getDataSize());
+            std::memmove(m_buffer.data(), getReadPtr(), getUnreadSize());
             m_writeOffset -= m_readOffset;
             m_readOffset = 0;
         }

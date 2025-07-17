@@ -20,7 +20,6 @@ namespace net
         uint8_t* getWritePtr() { return m_buffer.data() + m_writeOffset; }
         size_t getUnwrittenSize() const { return m_buffer.size() - m_writeOffset; }
         size_t getUnreadSize() const { return m_writeOffset - m_readOffset; }
-        size_t getDataSize() const { return m_writeOffset - m_readOffset; }
 
     private:
         void resetOffsets();
