@@ -6,6 +6,7 @@ add_library(Network STATIC
     "Event.h"
     "Thread.h" "Thread.cpp"
     "Buffer.h" "Buffer.cpp"
+    "Packet.h" "Packet.cpp"
 )
 
 # Set C++ standard
