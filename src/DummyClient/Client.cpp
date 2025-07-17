@@ -1,5 +1,6 @@
 ﻿#include "Pch.h"
 #include "Client.h"
+#include "Network/Packet.h"
 
 DummyClient::DummyClient()
     : m_running(false)
@@ -135,8 +136,6 @@ void DummyClient::handleServiceEvent(net::CloseServiceEvent& event)
     assert(m_running.load());
 
     stop();
-
-    spdlog::debug("[DummyClient] 서비스 닫기 이벤트 처리");
 }
 
 void DummyClient::handleServiceEvent(net::ConnectServiceEvent& event)
@@ -150,8 +149,6 @@ void DummyClient::handleServiceEvent(net::ConnectServiceEvent& event)
     auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
     m_sessionManager.addSession(session);
     session->start();
-
-    spdlog::debug("[DummyClient] 서버 연결 이벤트 처리");
 }
 
 void DummyClient::processSessionEvents()
@@ -177,8 +174,6 @@ void DummyClient::processSessionEvents()
 void DummyClient::handleSessionEvent(net::CloseSessionEvent& event)
 {
     m_sessionManager.removeSession(event.sessionId);
-
-    spdlog::debug("[DummyClient] 세션 닫기 이벤트 처리: {}", event.sessionId);
 }
 
 void DummyClient::handleSessionEvent(net::ReceiveSessionEvent& event)
@@ -197,15 +192,35 @@ void DummyClient::handleSessionEvent(net::ReceiveSessionEvent& event)
         return;
     }
 
-    auto& receiveBuffer = session->getReceiveBuffer();
-    spdlog::debug("[DummyClient] 세션 {}에서 수신된 데이터 크기: {}", event.sessionId, receiveBuffer.getUnreadSize());
+    net::PacketView packet;
+    while (session->getFrontPacket(packet))
+    {
+        // 패킷이 유효한지 확인
+        if (!packet.isValid())
+        {
+            spdlog::error("[DummyClient] 세션 {}에서 수신된 패킷이 유효하지 않습니다.", event.sessionId);
+            session->popPacket();
+            continue;
+        }
 
-    // TODO: 실제 수신 데이터 처리 로직 구현
+        switch (packet.header->id)
+        {
+        case 1000:
+            spdlog::debug("[DummyClient] 세션 {}에서 수신된 패킷 ID 1000 처리", event.sessionId);
+            // 페이로드의 메시지 출력
+            {
+                std::string message(reinterpret_cast<const char*>(packet.payload), packet.header->size - sizeof(net::PacketHeader));
+                spdlog::debug("[DummyClient] 수신 메시지: {}", message);
+            }
+            break;
+        default:
+            break;
+        }
 
-    receiveBuffer.onRead(receiveBuffer.getUnreadSize());
+        // 패킷 처리 후 수신 버퍼에서 제거
+        session->popPacket();
+    }
 
     // 세션에서 다시 비동기 수신 시작
     session->receive();
-
-    spdlog::debug("[DummyClient] 수신 이벤트 처리: {}", event.sessionId);
 }

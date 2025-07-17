@@ -1,6 +1,7 @@
 ﻿#include "Pch.h"  
 #include "Session.h"
 #include "Queue.h"
+#include "Packet.h"
 
 namespace net  
 {
@@ -100,9 +101,44 @@ namespace net
             });
     }
 
+    bool Session::getFrontPacket(PacketView& view) const  
+    {
+        if (m_receiveBuffer.getUnreadSize() < sizeof(PacketHeader))  
+        {  
+            return false;
+        }
+
+        const PacketHeader* header = reinterpret_cast<const PacketHeader*>(m_receiveBuffer.getReadPtr());
+        if (m_receiveBuffer.getUnreadSize() < header->size)
+        {  
+            return false;
+        }
+
+        view.header = header;
+        view.payload = m_receiveBuffer.getReadPtr() + sizeof(PacketHeader);
+
+        return true;
+    }
+
+    void Session::popPacket()  
+    {
+        if (m_running.load() == false)  
+        {  
+            return;  
+        }
+
+        assert(sizeof(PacketHeader) <= m_receiveBuffer.getUnreadSize());
+
+        const PacketHeader* header = reinterpret_cast<const PacketHeader*>(m_receiveBuffer.getReadPtr());
+        assert(header->size <= m_receiveBuffer.getUnreadSize());
+
+        // 패킷 크기만큼 읽기 오프셋 이동
+        m_receiveBuffer.onRead(header->size);
+    }
+
     void Session::asyncRead()  
     {
-        if (!m_running.load())  
+        if (m_running.load() == false)  
         {
             return;  
         }

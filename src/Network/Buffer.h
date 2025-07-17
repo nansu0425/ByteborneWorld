@@ -17,7 +17,10 @@ namespace net
         void onWritten(size_t bytesWritten);
 
         uint8_t* getReadPtr() { return m_buffer.data() + m_readOffset; }
+        const uint8_t* getReadPtr() const { return m_buffer.data() + m_readOffset; }
         uint8_t* getWritePtr() { return m_buffer.data() + m_writeOffset; }
+        const uint8_t* getWritePtr() const { return m_buffer.data() + m_writeOffset; }
+
         size_t getUnwrittenSize() const { return m_buffer.size() - m_writeOffset; }
         size_t getUnreadSize() const { return m_writeOffset - m_readOffset; }
 

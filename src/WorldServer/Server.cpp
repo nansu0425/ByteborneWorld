@@ -1,5 +1,6 @@
 ﻿#include "Pch.h"
 #include "Server.h"
+#include "Network/Packet.h"
 
 WorldServer::WorldServer()
     : m_running(false)
@@ -56,8 +57,13 @@ void WorldServer::loop()
     constexpr auto TickInterval = std::chrono::milliseconds(50);
     auto lastTickCountTime = std::chrono::steady_clock::now();
     int32_t tickCount = 0;
+
     std::string sendMessage = "Hello from WorldServer!";
-    std::vector<uint8_t> sendData(sendMessage.begin(), sendMessage.end());
+    std::vector<uint8_t> packet(sizeof(net::PacketHeader) + sendMessage.size());
+    net::PacketHeader* header = reinterpret_cast<net::PacketHeader*>(packet.data());
+    header->size = static_cast<net::PacketSize>(packet.size());
+    header->id = 1000;
+    std::memcpy(header + 1, sendMessage.c_str(), sendMessage.size());
 
     while (m_running.load())
     {
@@ -65,7 +71,7 @@ void WorldServer::loop()
 
         processServiceEvents();
         processSessionEvents();
-        m_sessionManager.broadcast(sendData);
+        m_sessionManager.broadcast(packet);
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -138,8 +144,6 @@ void WorldServer::handleServiceEvent(net::CloseServiceEvent& event)
     assert(m_running.load());
 
     stop();
-
-    spdlog::debug("[WorldServer] 서비스 닫기 이벤트 처리");
 }
 
 void WorldServer::handleServiceEvent(net::AcceptServiceEvent& event)
@@ -153,8 +157,6 @@ void WorldServer::handleServiceEvent(net::AcceptServiceEvent& event)
     auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
     m_sessionManager.addSession(session);
     session->start();
-
-    spdlog::debug("[WorldServer] 클라이언트 수락 이벤트 처리");
 }
 
 void WorldServer::processSessionEvents()
@@ -180,8 +182,6 @@ void WorldServer::processSessionEvents()
 void WorldServer::handleSessionEvent(net::CloseSessionEvent& event)
 {
     m_sessionManager.removeSession(event.sessionId);
-
-    spdlog::debug("[WorldServer] 세션 닫기 이벤트 처리: {}", event.sessionId);
 }
 
 void WorldServer::handleSessionEvent(net::ReceiveSessionEvent& event)
@@ -200,15 +200,22 @@ void WorldServer::handleSessionEvent(net::ReceiveSessionEvent& event)
         return;
     }
 
-    auto& receiveBuffer = session->getReceiveBuffer();
-    spdlog::debug("[WorldServer] 세션 {}에서 수신된 데이터 크기: {}", event.sessionId, receiveBuffer.getUnreadSize());
+    net::PacketView packet;
+    while (session->getFrontPacket(packet))
+    {
+        if (packet.isValid() == false)
+        {
+            spdlog::error("[WorldServer] 세션 {}에서 수신된 패킷이 유효하지 않습니다.", event.sessionId);
+            session->popPacket();
+            continue;
+        }
 
-    // TODO: 수신된 데이터를 처리하는 로직 추가
+        // TODO: 패킷 처리 로직 추가
 
-    receiveBuffer.onRead(receiveBuffer.getUnreadSize());
+        // 패킷 처리 후 수신 버퍼에서 제거
+        session->popPacket();
+    }
 
     // 세션에서 다시 비동기 수신 시작
     session->receive();
-
-    spdlog::debug("[WorldServer] 수신 이벤트 처리: {}", event.sessionId);
 }

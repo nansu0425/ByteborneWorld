@@ -11,6 +11,7 @@ namespace net
     using SessionId = int64_t;
 
     class SessionEventQueue;
+    struct PacketView;
 
     class Session
         : public std::enable_shared_from_this<Session>
@@ -26,6 +27,9 @@ namespace net
 
         void receive();
         void send(std::vector<uint8_t> data);
+
+        bool getFrontPacket(PacketView& view) const;
+        void popPacket();
 
         bool isRunning() const { return m_running.load(); }
         SessionId getSessionId() const { return m_sessionId; }
