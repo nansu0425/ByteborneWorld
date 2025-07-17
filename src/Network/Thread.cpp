@@ -15,14 +15,7 @@ namespace net
             m_threads.emplace_back(
                 [this]()
                 {
-                    try
-                    {
-                        m_context.run();
-                    }
-                    catch (const std::exception& e)
-                    {
-                        SPDLOG_ERROR("[IoThreadPool] IO 스레드 오류: {}", e.what());
-                    }
+                    m_context.run();
                 });
         }
     }
