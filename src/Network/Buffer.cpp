@@ -45,4 +45,95 @@ namespace net
             m_readOffset = 0;
         }
     }
+
+    SendBufferChunk::SendBufferChunk(const SendBufferPtr& owner, uint8_t* chunk, size_t openSize)
+        : m_owner(owner)
+        , m_chunk(chunk)
+        , m_openSize(openSize)
+    {
+        assert(m_owner->isClosed() == false);
+        assert(m_openSize <= m_owner->getFreeSize());
+    }
+
+    SendBufferChunkPtr SendBufferChunk::create(const SendBufferPtr& owner, uint8_t* chunk, size_t openSize)
+    {
+        return std::make_shared<SendBufferChunk>(owner, chunk, openSize);
+    }
+
+    void SendBufferChunk::onWritten(size_t bytesWritten)
+    {
+        assert(m_closed == false);
+        assert(bytesWritten <= getUnwrittenSize());
+
+        m_writeOffset += bytesWritten;
+    }
+
+    void SendBufferChunk::close()
+    {
+        assert(m_closed == false);
+        m_closed = true;
+
+        // SendBuffer 쓰기 종료 처리
+        m_owner->close(m_writeOffset);
+    }
+
+    SendBuffer::SendBuffer(size_t size)
+    {
+        m_buffer.resize(size);
+
+        spdlog::debug("[SendBuffer] 버퍼 생성: {} bytes", size);
+    }
+
+    SendBuffer::~SendBuffer()
+    {
+        spdlog::debug("[SendBuffer] 버퍼 소멸: {} bytes, 오프셋: {}", m_buffer.size(), m_chunkOffset);
+    }
+
+    SendBufferPtr SendBuffer::create(size_t size)
+    {
+        return std::make_shared<SendBuffer>(size);
+    }
+
+    SendBufferChunkPtr SendBuffer::open(size_t size)
+    {
+        assert(isClosed());
+        assert(size <= getFreeSize());
+
+        spdlog::debug("[SendBuffer] 버퍼 열기: {} bytes, 오프셋: {}", size, m_chunkOffset);
+
+        m_closed = false;
+        auto chunk = SendBufferChunk::create(shared_from_this(), getChunkPtr(), size);
+
+        return chunk;
+    }
+
+    void SendBuffer::close(size_t bytesWritten)
+    {
+        assert(isClosed() == false);
+        assert(bytesWritten <= getFreeSize());
+
+        m_chunkOffset += bytesWritten;
+        m_closed = true;
+
+        spdlog::debug("[SendBuffer] 버퍼 닫기: {} bytes, 오프셋: {}", bytesWritten, m_chunkOffset);
+    }
+
+    SendBufferManager::SendBufferManager()
+    {
+        m_currentBuffer = SendBuffer::create();
+    }
+
+    SendBufferChunkPtr SendBufferManager::open(size_t size)
+    {
+        assert(m_currentBuffer);
+        assert(m_currentBuffer->isClosed());
+
+        if (m_currentBuffer->getFreeSize() < size)
+        {
+            // 현재 버퍼에 충분한 공간이 없으면 새 버퍼로 교체
+            m_currentBuffer = SendBuffer::create();
+        }
+
+        return m_currentBuffer->open(size);
+    }
 }

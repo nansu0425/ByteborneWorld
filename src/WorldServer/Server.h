@@ -26,6 +26,8 @@ private:
     void handleSessionEvent(net::CloseSessionEvent& event);
     void handleSessionEvent(net::ReceiveSessionEvent& event);
 
+    void broadcastMessage(const std::string& message);
+
 private:
     std::atomic<bool> m_running;
     std::thread m_mainThread;
@@ -33,4 +35,5 @@ private:
     net::ServerServicePtr m_serverService;
     net::SessionEventQueue m_sessionEventQueue;
     net::SessionManager m_sessionManager;
+    net::SendBufferManager m_sendBufferManager;
 };

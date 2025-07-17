@@ -26,7 +26,7 @@ namespace net
         void stop();
 
         void receive();
-        void send(std::vector<uint8_t> data);
+        void send(const SendBufferChunkPtr& chunk);
 
         bool getFrontPacket(PacketView& view) const;
         void popPacket();
@@ -50,14 +50,14 @@ namespace net
         asio::ip::tcp::socket m_socket;
         SessionEventQueue& m_eventQueue;
         asio::strand<asio::ip::tcp::socket::executor_type> m_strand;
-        std::deque<std::vector<uint8_t>> m_sendQueue;
+        std::deque<SendBufferChunkPtr> m_sendQueue;
         ReceiveBuffer m_receiveBuffer;
     };
 
     class SessionManager
     {
     public:
-        void broadcast(const std::vector<uint8_t>& data);
+        void broadcast(const SendBufferChunkPtr& chunk);
         void stopAllSessions();
 
         void addSession(const SessionPtr& session);

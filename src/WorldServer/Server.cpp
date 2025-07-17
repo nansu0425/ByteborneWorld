@@ -59,11 +59,6 @@ void WorldServer::loop()
     int32_t tickCount = 0;
 
     std::string sendMessage = "Hello from WorldServer!";
-    std::vector<uint8_t> packet(sizeof(net::PacketHeader) + sendMessage.size());
-    net::PacketHeader* header = reinterpret_cast<net::PacketHeader*>(packet.data());
-    header->size = static_cast<net::PacketSize>(packet.size());
-    header->id = 1000;
-    std::memcpy(header + 1, sendMessage.c_str(), sendMessage.size());
 
     while (m_running.load())
     {
@@ -71,7 +66,7 @@ void WorldServer::loop()
 
         processServiceEvents();
         processSessionEvents();
-        m_sessionManager.broadcast(packet);
+        broadcastMessage(sendMessage);
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -218,4 +213,19 @@ void WorldServer::handleSessionEvent(net::ReceiveSessionEvent& event)
 
     // 세션에서 다시 비동기 수신 시작
     session->receive();
+}
+
+void WorldServer::broadcastMessage(const std::string& message)
+{
+    auto chunk = m_sendBufferManager.open(message.size() + sizeof(net::PacketHeader));
+    net::PacketHeader* header = reinterpret_cast<net::PacketHeader*>(chunk->getWritePtr());
+
+    header->size = static_cast<net::PacketSize>(chunk->getUnwrittenSize());
+    header->id = 1000;
+    std::memcpy(header + 1, message.c_str(), message.size());
+
+    chunk->onWritten(header->size);
+    chunk->close();
+
+    m_sessionManager.broadcast(chunk);
 }

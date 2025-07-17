@@ -79,7 +79,7 @@ namespace net
             });
     }
 
-    void Session::send(std::vector<uint8_t> data)  
+    void Session::send(const SendBufferChunkPtr& chunk)
     {
         if (!m_running.load())  
         {  
@@ -88,10 +88,10 @@ namespace net
 
         asio::post(
             m_strand,
-            [this, self = shared_from_this(), data = std::move(data)]() mutable
+            [this, self = shared_from_this(), chunk = chunk]()
             {
                 bool writeInProgress = !m_sendQueue.empty();
-                m_sendQueue.push_back(std::move(data));
+                m_sendQueue.push_back(chunk);
 
                 // 쓰기 작업이 진행 중이지 않으면 쓰기 요청
                 if (!writeInProgress)
@@ -180,7 +180,9 @@ namespace net
 
         asio::async_write(
             m_socket,
-            asio::buffer(m_sendQueue.front()),
+            asio::buffer(
+                m_sendQueue.front()->getReadPtr(),
+                m_sendQueue.front()->getWrittenSize()),
             asio::bind_executor(
                 m_strand,
                 [this, self = shared_from_this()]
@@ -282,11 +284,11 @@ namespace net
         m_eventQueue.push(std::move(event));
     }
 
-    void SessionManager::broadcast(const std::vector<uint8_t>& data)
+    void SessionManager::broadcast(const SendBufferChunkPtr& chunk)
     {
         for (const auto& pair : m_sessions)
         {
-            pair.second->send(data);
+            pair.second->send(chunk);
         }
     }
 
