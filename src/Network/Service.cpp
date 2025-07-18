@@ -1,14 +1,15 @@
 ﻿#include "Pch.h"
 #include "Service.h"
 #include "Session.h"
-#include "Queue.h"
+#include "Event.h"
 
 namespace net
 {
-    Service::Service(asio::io_context& ioContext)
+    Service::Service(asio::io_context& ioContext, ServiceEventQueue& eventQueue)
         : m_running(false)
         , m_strand(asio::make_strand(ioContext))
         , m_stopSignals(ioContext)
+        , m_eventQueue(eventQueue)
     {}
 
     void Service::asyncWaitForStopSignals()
@@ -36,14 +37,14 @@ namespace net
             });
     }
 
-    ServerService::ServerService(asio::io_context& ioContext, uint16_t port)
-        : Service(ioContext)
+    ServerService::ServerService(asio::io_context& ioContext, ServiceEventQueue& eventQueue, uint16_t port)
+        : Service(ioContext, eventQueue)
         , m_acceptor(ioContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
     {}
 
-    ServerServicePtr ServerService::createInstance(asio::io_context& ioContext, uint16_t port)
+    ServerServicePtr ServerService::createInstance(asio::io_context& ioContext, ServiceEventQueue& eventQueue, uint16_t port)
     {
-        auto service = std::make_shared<ServerService>(ioContext, port);
+        auto service = std::make_shared<ServerService>(ioContext, eventQueue, port);
         service->asyncWaitForStopSignals();
 
         return service;
@@ -109,8 +110,8 @@ namespace net
             const auto& remoteEndpoint = socket.remote_endpoint();
             spdlog::debug("[ServerService] 클라이언트 수락: {}:{}", remoteEndpoint.address().to_string(), remoteEndpoint.port());
 
-            // 이벤트 큐에 클라이언트 수락 이벤트 추가
-            ServiceEventPtr event = std::make_shared<AcceptServiceEvent>(std::move(socket));
+            // 이벤트 큐에 accept 이벤트 추가
+            ServiceEventPtr event = std::make_shared<ServiceAcceptEvent>(std::move(socket));
             m_eventQueue.push(std::move(event));
         }
         else
@@ -118,7 +119,7 @@ namespace net
             handleError(error);
         }
 
-        // 다음 연결을 수락하기 위해 다시 호출
+        // 다음 accept를 위해 다시 호출
         asyncAccept();
     }
 
@@ -186,13 +187,13 @@ namespace net
             }
         }
 
-        // 서비스 이벤트 큐에 닫기 이벤트 추가
-        ServiceEventPtr event = std::make_shared<CloseServiceEvent>();
+        // 서비스 이벤트 큐에 close 이벤트 추가
+        ServiceEventPtr event = std::make_shared<ServiceCloseEvent>();
         m_eventQueue.push(std::move(event));
     }
 
-    ClientService::ClientService(asio::io_context& ioContext, const ResolveTarget& resolveTarget, size_t connectCount)
-        : Service(ioContext)
+    ClientService::ClientService(asio::io_context& ioContext, ServiceEventQueue& eventQueue, const ResolveTarget& resolveTarget, size_t connectCount)
+        : Service(ioContext, eventQueue)
         , m_resolveTarget(resolveTarget)
         , m_resolver(ioContext)
     {
@@ -205,9 +206,9 @@ namespace net
         }
     }
 
-    ClientServicePtr ClientService::createInstance(asio::io_context& ioContext, const ResolveTarget& resolveTarget, size_t connectCount)
+    ClientServicePtr ClientService::createInstance(asio::io_context& ioContext, ServiceEventQueue& eventQueue, const ResolveTarget& resolveTarget, size_t connectCount)
     {
-        auto service = std::make_shared<ClientService>(ioContext, resolveTarget, connectCount);
+        auto service = std::make_shared<ClientService>(ioContext, eventQueue, resolveTarget, connectCount);
         service->asyncWaitForStopSignals();
 
         return service;
@@ -315,8 +316,8 @@ namespace net
         {
             spdlog::debug("[ClientService] 서버 연결: {}:{}", m_resolveTarget.host, m_resolveTarget.service);
 
-            // 이벤트 큐에 서버 연결 이벤트 추가
-            ServiceEventPtr event = std::make_shared<ConnectServiceEvent>(std::move(m_sockets[socketIndex]));
+            // 이벤트 큐에 connect 이벤트 추가
+            ServiceEventPtr event = std::make_shared<ServiceConnectEvent>(std::move(m_sockets[socketIndex]));
             m_eventQueue.push(std::move(event));
         }
         else
@@ -410,8 +411,8 @@ namespace net
             }
         }
 
-        // 서비스 이벤트 큐에 닫기 이벤트 추가
-        ServiceEventPtr event = std::make_shared<CloseServiceEvent>();
+        // 서비스 이벤트 큐에 close 이벤트 추가
+        ServiceEventPtr event = std::make_shared<ServiceCloseEvent>();
         m_eventQueue.push(std::move(event));
     }
 }

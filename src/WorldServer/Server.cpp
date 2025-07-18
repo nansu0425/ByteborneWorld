@@ -6,7 +6,7 @@ WorldServer::WorldServer()
     : m_running(false)
 {
     m_serverService = net::ServerService::createInstance(
-        m_ioThreadPool.getContext(), 12345);
+        m_ioThreadPool.getContext(), m_serviceEventQueue, 12345);
 }
 
 void WorldServer::start()
@@ -101,7 +101,7 @@ void WorldServer::close()
     m_sessionManager.stopAllSessions();
 
     // 서비스 이벤트 큐가 비워지고, 모든 세션이 제거될 때까지 대기
-    while ((!m_serverService->isEventQueueEmpty()) ||
+    while ((!m_serviceEventQueue.isEmpty()) ||
            (!m_sessionManager.isEmpty()))
     {
         processServiceEvents();
@@ -116,15 +116,16 @@ void WorldServer::close()
 
 void WorldServer::processServiceEvents()
 {
-    while (auto event = m_serverService->popEvent())
+    net::ServiceEventPtr event;
+    while (m_serviceEventQueue.pop(event))
     {
         switch (event->type)
         {
         case net::ServiceEventType::Close:
-            handleServiceEvent(*static_cast<net::CloseServiceEvent*>(event.get()));
+            handleServiceEvent(*static_cast<net::ServiceCloseEvent*>(event.get()));
             break;
         case net::ServiceEventType::Accept:
-            handleServiceEvent(*static_cast<net::AcceptServiceEvent*>(event.get()));
+            handleServiceEvent(*static_cast<net::ServiceAcceptEvent*>(event.get()));
             break;
         default:
             spdlog::error("[WorldServer] 알 수 없는 서비스 이벤트 타입: {}", static_cast<int>(event->type));
@@ -134,14 +135,14 @@ void WorldServer::processServiceEvents()
     }
 }
 
-void WorldServer::handleServiceEvent(net::CloseServiceEvent& event)
+void WorldServer::handleServiceEvent(net::ServiceCloseEvent& event)
 {
     assert(m_running.load());
 
     stop();
 }
 
-void WorldServer::handleServiceEvent(net::AcceptServiceEvent& event)
+void WorldServer::handleServiceEvent(net::ServiceAcceptEvent& event)
 {
     if (!m_running.load())
     {
@@ -156,15 +157,16 @@ void WorldServer::handleServiceEvent(net::AcceptServiceEvent& event)
 
 void WorldServer::processSessionEvents()
 {
-    while (auto event = m_sessionEventQueue.pop())
+    net::SessionEventPtr event;
+    while (m_sessionEventQueue.pop(event))
     {
         switch (event->type)
         {
         case net::SessionEventType::Close:
-            handleSessionEvent(*static_cast<net::CloseSessionEvent*>(event.get()));
+            handleSessionEvent(*static_cast<net::SessionCloseEvent*>(event.get()));
             break;
         case net::SessionEventType::Receive:
-            handleSessionEvent(*static_cast<net::ReceiveSessionEvent*>(event.get()));
+            handleSessionEvent(*static_cast<net::SessionReceiveEvent*>(event.get()));
             break;
         default:
             spdlog::error("[WorldServer] 알 수 없는 세션 이벤트 타입: {}", static_cast<int>(event->type));
@@ -174,12 +176,12 @@ void WorldServer::processSessionEvents()
     }
 }
 
-void WorldServer::handleSessionEvent(net::CloseSessionEvent& event)
+void WorldServer::handleSessionEvent(net::SessionCloseEvent& event)
 {
     m_sessionManager.removeSession(event.sessionId);
 }
 
-void WorldServer::handleSessionEvent(net::ReceiveSessionEvent& event)
+void WorldServer::handleSessionEvent(net::SessionReceiveEvent& event)
 {
     if (!m_running.load())
     {

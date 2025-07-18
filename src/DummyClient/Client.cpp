@@ -6,7 +6,7 @@ DummyClient::DummyClient()
     : m_running(false)
 {
     m_clientService = net::ClientService::createInstance(
-        m_ioThreadPool.getContext(), net::ResolveTarget{"localhost", "12345"}, 5);
+        m_ioThreadPool.getContext(), m_serviceEventQueue, net::ResolveTarget{"localhost", "12345"}, 5);
 }
 
 void DummyClient::start()
@@ -98,7 +98,7 @@ void DummyClient::close()
     m_sessionManager.stopAllSessions();
 
     // 서비스 이벤트 큐가 비워지고, 모든 세션이 제거될 때까지 대기
-    while ((!m_clientService->isEventQueueEmpty()) ||
+    while ((!m_serviceEventQueue.isEmpty()) ||
            (!m_sessionManager.isEmpty()))
     {
         processServiceEvents();
@@ -113,15 +113,16 @@ void DummyClient::close()
 
 void DummyClient::processServiceEvents()
 {
-    while (auto event = m_clientService->popEvent())
+    net::ServiceEventPtr event;
+    while (m_serviceEventQueue.pop(event))
     {
         switch (event->type)
         {
         case net::ServiceEventType::Close:
-            handleServiceEvent(*static_cast<net::CloseServiceEvent*>(event.get()));
+            handleServiceEvent(*static_cast<net::ServiceCloseEvent*>(event.get()));
             break;
         case net::ServiceEventType::Connect:
-            handleServiceEvent(*static_cast<net::ConnectServiceEvent*>(event.get()));
+            handleServiceEvent(*static_cast<net::ServiceConnectEvent*>(event.get()));
             break;
         default:
             spdlog::error("[DummyClient] 알 수 없는 서비스 이벤트 타입: {}", static_cast<int>(event->type));
@@ -131,14 +132,14 @@ void DummyClient::processServiceEvents()
     }
 }
 
-void DummyClient::handleServiceEvent(net::CloseServiceEvent& event)
+void DummyClient::handleServiceEvent(net::ServiceCloseEvent& event)
 {
     assert(m_running.load());
 
     stop();
 }
 
-void DummyClient::handleServiceEvent(net::ConnectServiceEvent& event)
+void DummyClient::handleServiceEvent(net::ServiceConnectEvent& event)
 {
     if (!m_running.load())
     {
@@ -153,15 +154,16 @@ void DummyClient::handleServiceEvent(net::ConnectServiceEvent& event)
 
 void DummyClient::processSessionEvents()
 {
-    while (auto event = m_sessionEventQueue.pop())
+    net::SessionEventPtr event;
+    while (m_sessionEventQueue.pop(event))
     {
         switch (event->type)
         {
         case net::SessionEventType::Close:
-            handleSessionEvent(*static_cast<net::CloseSessionEvent*>(event.get()));
+            handleSessionEvent(*static_cast<net::SessionCloseEvent*>(event.get()));
             break;
         case net::SessionEventType::Receive:
-            handleSessionEvent(*static_cast<net::ReceiveSessionEvent*>(event.get()));
+            handleSessionEvent(*static_cast<net::SessionReceiveEvent*>(event.get()));
             break;
         default:
             spdlog::error("[DummyClient] 알 수 없는 세션 이벤트 타입: {}", static_cast<int>(event->type));
@@ -171,12 +173,12 @@ void DummyClient::processSessionEvents()
     }
 }
 
-void DummyClient::handleSessionEvent(net::CloseSessionEvent& event)
+void DummyClient::handleSessionEvent(net::SessionCloseEvent& event)
 {
     m_sessionManager.removeSession(event.sessionId);
 }
 
-void DummyClient::handleSessionEvent(net::ReceiveSessionEvent& event)
+void DummyClient::handleSessionEvent(net::SessionReceiveEvent& event)
 {
     if (!m_running.load())
     {

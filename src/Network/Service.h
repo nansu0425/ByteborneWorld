@@ -1,25 +1,24 @@
 ﻿#pragma once
 
 #include <asio.hpp>
-#include "Queue.h"
+#include "Core/LockQueue.h"
 #include "Thread.h"
 
 namespace net
 {
     class SessionManager;
 
+    using ServiceEventQueue = core::LockQueue<std::shared_ptr<struct ServiceEvent>>;
+
     class Service
         : public std::enable_shared_from_this<Service>
     {
     public:
-        Service(asio::io_context& ioContext);
+        Service(asio::io_context& ioContext, ServiceEventQueue& eventQueue);
         virtual ~Service() = default;
 
         virtual void start() = 0;
         virtual void stop() = 0;
-
-        ServiceEventPtr popEvent() { return m_eventQueue.pop(); }
-        bool isEventQueueEmpty() { return m_eventQueue.isEmpty(); }
 
     protected:
         virtual void handleError(const asio::error_code& error) = 0;
@@ -31,7 +30,7 @@ namespace net
         std::atomic<bool> m_running = false;
         asio::strand<asio::io_context::executor_type> m_strand;
         asio::signal_set m_stopSignals;
-        ServiceEventQueue m_eventQueue;
+        ServiceEventQueue& m_eventQueue;
     };
 
     using ServerServicePtr = std::shared_ptr<class ServerService>;
@@ -40,9 +39,9 @@ namespace net
         : public Service
     {
     public:
-        ServerService(asio::io_context& ioContext, uint16_t port);
+        ServerService(asio::io_context& ioContext, ServiceEventQueue& eventQueue, uint16_t port);
 
-        static ServerServicePtr createInstance(asio::io_context& ioContext, uint16_t port);
+        static ServerServicePtr createInstance(asio::io_context& ioContext, ServiceEventQueue& eventQueue, uint16_t port);
         ServerServicePtr getInstance() { return std::static_pointer_cast<ServerService>(shared_from_this()); }
 
         virtual void start() override;
@@ -71,9 +70,9 @@ namespace net
         : public Service
     {
     public:
-        ClientService(asio::io_context& ioContext, const ResolveTarget& resolveTarget, size_t connectCount);
+        ClientService(asio::io_context& ioContext, ServiceEventQueue& eventQueue, const ResolveTarget& resolveTarget, size_t connectCount);
 
-        static ClientServicePtr createInstance(asio::io_context& ioContext, const ResolveTarget& resolveTarget, size_t connectCount);
+        static ClientServicePtr createInstance(asio::io_context& ioContext, ServiceEventQueue& eventQueue, const ResolveTarget& resolveTarget, size_t connectCount);
         ClientServicePtr getInstance() { return std::static_pointer_cast<ClientService>(shared_from_this()); }
 
         virtual void start() override;

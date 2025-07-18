@@ -4,6 +4,7 @@ find_package(spdlog CONFIG REQUIRED)
 # Add source to this static library.
 add_library(Core STATIC
     "Context.h" "Context.cpp"
+    "LockQueue.h" "LockQueue.cpp"
 )
 
 # Set C++ standard

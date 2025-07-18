@@ -1,7 +1,7 @@
 ﻿#include "Pch.h"  
 #include "Session.h"
-#include "Queue.h"
 #include "Packet.h"
+#include "Event.h"
 
 namespace net  
 {
@@ -167,7 +167,7 @@ namespace net
         m_receiveBuffer.onWritten(bytesRead);
 
         // 이벤트 큐에 receive 이벤트 추가
-        SessionEventPtr event = std::make_shared<ReceiveSessionEvent>(m_sessionId);
+        SessionEventPtr event = std::make_shared<SessionReceiveEvent>(m_sessionId);
         m_eventQueue.push(std::move(event));
     }
 
@@ -280,7 +280,7 @@ namespace net
         }
 
         // 이벤트 큐에 close 이벤트 추가
-        SessionEventPtr event = std::make_shared<CloseSessionEvent>(m_sessionId);
+        SessionEventPtr event = std::make_shared<SessionCloseEvent>(m_sessionId);
         m_eventQueue.push(std::move(event));
     }
 

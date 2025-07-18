@@ -9,5 +9,7 @@
 #include <string>
 #include <vector>
 #include <atomic>
+#include <mutex>
+#include <deque>
 
 #include <spdlog/spdlog.h>

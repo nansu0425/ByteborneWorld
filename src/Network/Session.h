@@ -3,14 +3,15 @@
 #include <asio.hpp>
 #include <deque>
 #include <memory>
+#include "Core/LockQueue.h"
 #include "Buffer.h"
 
 namespace net
 {
     using SessionPtr = std::shared_ptr<class Session>;
     using SessionId = int64_t;
+    using SessionEventQueue = core::LockQueue<std::shared_ptr<struct SessionEvent>>;
 
-    class SessionEventQueue;
     struct PacketView;
 
     class Session

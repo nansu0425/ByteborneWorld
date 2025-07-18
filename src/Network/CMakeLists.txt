@@ -2,7 +2,6 @@
 add_library(Network STATIC
     "Session.h" "Session.cpp"
     "Service.h" "Service.cpp"
-    "Queue.h" "Queue.cpp"
     "Event.h"
     "Thread.h" "Thread.cpp"
     "Buffer.h" "Buffer.cpp"

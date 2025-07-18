@@ -24,18 +24,18 @@ namespace net
 
     using SessionEventPtr = std::shared_ptr<SessionEvent>;
 
-    struct CloseSessionEvent
+    struct SessionCloseEvent
         : public SessionEvent
     {
-        CloseSessionEvent(SessionId sessionId)
+        SessionCloseEvent(SessionId sessionId)
             : SessionEvent(SessionEventType::Close, sessionId)
         {}
     };
 
-    struct ReceiveSessionEvent
+    struct SessionReceiveEvent
         : public SessionEvent
     {
-        ReceiveSessionEvent(SessionId sessionId)
+        SessionReceiveEvent(SessionId sessionId)
             : SessionEvent(SessionEventType::Receive, sessionId)
         {}
     };
@@ -59,31 +59,31 @@ namespace net
 
     using ServiceEventPtr = std::shared_ptr<ServiceEvent>;
 
-    struct CloseServiceEvent
+    struct ServiceCloseEvent
         : public ServiceEvent
     {
-        CloseServiceEvent()
+        ServiceCloseEvent()
             : ServiceEvent(ServiceEventType::Close)
         {}
     };
 
-    struct AcceptServiceEvent
+    struct ServiceAcceptEvent
         : public ServiceEvent
     {
         asio::ip::tcp::socket socket;
 
-        AcceptServiceEvent(asio::ip::tcp::socket&& socket)
+        ServiceAcceptEvent(asio::ip::tcp::socket&& socket)
             : ServiceEvent(ServiceEventType::Accept)
             , socket(std::move(socket))
         {}
     };
 
-    struct ConnectServiceEvent
+    struct ServiceConnectEvent
         : public ServiceEvent
     {
         asio::ip::tcp::socket socket;
 
-        ConnectServiceEvent(asio::ip::tcp::socket&& socket)
+        ServiceConnectEvent(asio::ip::tcp::socket&& socket)
             : ServiceEvent(ServiceEventType::Connect)
             , socket(std::move(socket))
         {}
