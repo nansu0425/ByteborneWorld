@@ -1,15 +1,10 @@
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
 # Find and link libraries
 find_package(Protobuf CONFIG REQUIRED)
 
-# .proto file directory
-set(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
+# .proto files directory
+set(PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/proto")
 set(PROTO_FILES
-    ${PROTO_DIR}/Chat.proto
+    "${PROTO_DIR}/Chat.proto"
 )
 
 # Generate C++ source files from .proto files

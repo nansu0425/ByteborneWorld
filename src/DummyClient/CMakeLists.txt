@@ -4,10 +4,6 @@ add_executable (DummyClient
     "Client.h" "Client.cpp"
 )
 
-# Set C++ standard
-set_property(TARGET DummyClient PROPERTY CXX_STANDARD 17)
-set_property(TARGET DummyClient PROPERTY CXX_STANDARD_REQUIRED ON)
-
 # Enable precompiled headers using CMake's built-in support
 target_precompile_headers(DummyClient PRIVATE 
 	"${CMAKE_CURRENT_SOURCE_DIR}/Pch.h"
