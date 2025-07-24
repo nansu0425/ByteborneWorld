@@ -120,7 +120,7 @@ namespace net
         return true;
     }
 
-    void Session::popPacket()  
+    void Session::popFrontPacket()
     {
         if (m_running.load() == false)  
         {  

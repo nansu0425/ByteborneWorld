@@ -1,7 +1,7 @@
 ﻿#include "Pch.h"
 #include "Client.h"
 #include "Network/Packet.h"
-#include "Protocol/Types.h"
+#include "Protocol/Type.h"
 
 DummyClient::DummyClient()
     : m_running(false)
@@ -65,6 +65,7 @@ void DummyClient::loop()
 
         processServiceEvents();
         processSessionEvents();
+        processMessages();
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -195,36 +196,40 @@ void DummyClient::handleSessionEvent(net::SessionReceiveEvent& event)
         return;
     }
 
-    net::PacketView packet;
-    while (session->getFrontPacket(packet))
+    net::PacketView packetView;
+    while (session->getFrontPacket(packetView))
     {
-        assert(packet.isValid());
+        assert(packetView.isValid());
 
-        proto::MessageType messageType = static_cast<proto::MessageType>(packet.header->id);
-        switch (messageType)
+        // 패킷의 페이로드를 메시지 큐에 추가
+        proto::MessageType type = static_cast<proto::MessageType>(packetView.header->id);
+        m_messageQueue.push(type, packetView.payload, packetView.header->size - sizeof(net::PacketHeader));
+
+        // 수신 버퍼에서 패킷 제거
+        session->popFrontPacket();
+    }
+
+    // 세션에서 다시 비동기 수신 시작
+    session->receive();
+}
+
+void DummyClient::processMessages()
+{
+    proto::MessageType type;
+    proto::MessagePtr message;
+
+    while (m_running.load() && (message = m_messageQueue.pop(type)))
+    {
+        switch (type)
         {
         case proto::MessageType::S2C_Chat:
-            spdlog::debug("[DummyClient] 세션 {}에서 수신된 S2C_Chat 처리", event.sessionId);
             {
-                // S2C_Chat 메시지 처리
-                proto::S2C_Chat chat;
-                if (!chat.ParseFromArray(packet.payload, packet.header->size - sizeof(net::PacketHeader)))
-                {
-                    spdlog::error("[DummyClient] S2C_Chat 메시지 파싱 실패");
-                    return;
-                }
-
-                spdlog::debug("[DummyClient] S2C_Chat 메시지: {}", chat.content());
+                auto chatMessage = std::static_pointer_cast<proto::S2C_Chat>(message);
+                spdlog::info("[DummyClient] 서버로부터 채팅 메시지 수신: {}", chatMessage->content());
             }
             break;
         default:
             break;
         }
-
-        // 패킷 처리 후 수신 버퍼에서 제거
-        session->popPacket();
     }
-
-    // 세션에서 다시 비동기 수신 시작
-    session->receive();
 }

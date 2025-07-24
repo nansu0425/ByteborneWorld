@@ -18,7 +18,9 @@ protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
 # Add source to this static library.
 add_library(Protocol STATIC
     ${PROTO_HDRS} ${PROTO_SRCS}
-    "Types.h"
+    "Type.h"
+    "Queue.h" "Queue.cpp"
+    "Factory.h"
 )
 
 # Link libraries

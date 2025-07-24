@@ -30,7 +30,7 @@ namespace net
         void send(const SendBufferChunkPtr& chunk);
 
         bool getFrontPacket(PacketView& view) const;
-        void popPacket();
+        void popFrontPacket();
 
         bool isRunning() const { return m_running.load(); }
         SessionId getSessionId() const { return m_sessionId; }

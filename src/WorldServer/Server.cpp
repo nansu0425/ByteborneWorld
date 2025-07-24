@@ -1,7 +1,7 @@
 ﻿#include "Pch.h"
 #include "Server.h"
 #include "Network/Packet.h"
-#include "Protocol/Types.h"
+#include "Protocol/Type.h"
 
 WorldServer::WorldServer()
     : m_running(false)
@@ -201,17 +201,12 @@ void WorldServer::handleSessionEvent(net::SessionReceiveEvent& event)
     net::PacketView packet;
     while (session->getFrontPacket(packet))
     {
-        if (packet.isValid() == false)
-        {
-            spdlog::error("[WorldServer] 세션 {}에서 수신된 패킷이 유효하지 않습니다.", event.sessionId);
-            session->popPacket();
-            continue;
-        }
+        assert(packet.isValid());
 
         // TODO: 패킷 처리 로직 추가
 
         // 패킷 처리 후 수신 버퍼에서 제거
-        session->popPacket();
+        session->popFrontPacket();
     }
 
     // 세션에서 다시 비동기 수신 시작

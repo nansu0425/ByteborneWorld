@@ -4,6 +4,7 @@
 #include "Network/Session.h"
 #include "Network/Service.h"
 #include "Network/Event.h"
+#include "Protocol/Queue.h"
 
 class DummyClient
 {
@@ -26,6 +27,8 @@ private:
     void handleSessionEvent(net::SessionCloseEvent& event);
     void handleSessionEvent(net::SessionReceiveEvent& event);
 
+    void processMessages();
+
 private:
     std::atomic<bool> m_running;
     std::thread m_mainThread;
@@ -34,4 +37,5 @@ private:
     net::ClientServicePtr m_clientService;
     net::SessionEventQueue m_sessionEventQueue;
     net::SessionManager m_sessionManager;
+    proto::MessageQueue m_messageQueue;
 };
