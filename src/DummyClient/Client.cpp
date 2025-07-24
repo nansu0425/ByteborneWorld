@@ -1,6 +1,7 @@
 ﻿#include "Pch.h"
 #include "Client.h"
 #include "Network/Packet.h"
+#include "Protocol/Types.h"
 
 DummyClient::DummyClient()
     : m_running(false)
@@ -197,22 +198,23 @@ void DummyClient::handleSessionEvent(net::SessionReceiveEvent& event)
     net::PacketView packet;
     while (session->getFrontPacket(packet))
     {
-        // 패킷이 유효한지 확인
-        if (!packet.isValid())
-        {
-            spdlog::error("[DummyClient] 세션 {}에서 수신된 패킷이 유효하지 않습니다.", event.sessionId);
-            session->popPacket();
-            continue;
-        }
+        assert(packet.isValid());
 
-        switch (packet.header->id)
+        proto::MessageType messageType = static_cast<proto::MessageType>(packet.header->id);
+        switch (messageType)
         {
-        case 1000:
-            spdlog::debug("[DummyClient] 세션 {}에서 수신된 패킷 ID 1000 처리", event.sessionId);
-            // 페이로드의 메시지 출력
+        case proto::MessageType::S2C_Chat:
+            spdlog::debug("[DummyClient] 세션 {}에서 수신된 S2C_Chat 처리", event.sessionId);
             {
-                std::string message(reinterpret_cast<const char*>(packet.payload), packet.header->size - sizeof(net::PacketHeader));
-                spdlog::debug("[DummyClient] 수신 메시지: {}", message);
+                // S2C_Chat 메시지 처리
+                proto::S2C_Chat chat;
+                if (!chat.ParseFromArray(packet.payload, packet.header->size - sizeof(net::PacketHeader)))
+                {
+                    spdlog::error("[DummyClient] S2C_Chat 메시지 파싱 실패");
+                    return;
+                }
+
+                spdlog::debug("[DummyClient] S2C_Chat 메시지: {}", chat.content());
             }
             break;
         default:

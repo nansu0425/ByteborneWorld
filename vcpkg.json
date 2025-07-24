@@ -1,6 +1,7 @@
 {
   "dependencies": [
     "spdlog",
-    "asio"
+    "asio",
+    "protobuf"
   ]
 }

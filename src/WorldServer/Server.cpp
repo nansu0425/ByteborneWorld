@@ -1,6 +1,7 @@
 ﻿#include "Pch.h"
 #include "Server.h"
 #include "Network/Packet.h"
+#include "Protocol/Types.h"
 
 WorldServer::WorldServer()
     : m_running(false)
@@ -219,13 +220,20 @@ void WorldServer::handleSessionEvent(net::SessionReceiveEvent& event)
 
 void WorldServer::broadcastMessage(const std::string& message)
 {
-    auto chunk = m_sendBufferManager.open(message.size() + sizeof(net::PacketHeader));
+    // S2C_Chat 메시지 생성
+    proto::S2C_Chat chat;
+    chat.set_content(message);
+
+    // 전송 버퍼 열기
+    net::SendBufferChunkPtr chunk = m_sendBufferManager.open(sizeof(net::PacketHeader) + chat.ByteSizeLong());
+
+    // 전송 버퍼에 패킷 헤더와 메시지 쓰기
     net::PacketHeader* header = reinterpret_cast<net::PacketHeader*>(chunk->getWritePtr());
-
     header->size = static_cast<net::PacketSize>(chunk->getUnwrittenSize());
-    header->id = 1000;
-    std::memcpy(header + 1, message.c_str(), message.size());
+    header->id = static_cast<net::PacketId>(proto::MessageType::S2C_Chat);
+    chat.SerializeToArray(header + 1, header->size - sizeof(net::PacketHeader));
 
+    // 전송 버퍼 쓰기 완료 처리
     chunk->onWritten(header->size);
     chunk->close();
 

@@ -15,5 +15,5 @@ target_precompile_headers(DummyClient PRIVATE
 
 # Link libraries
 target_link_libraries(DummyClient PRIVATE
-    Core Network
+    Core Network Protocol
 )
