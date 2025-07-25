@@ -16,11 +16,19 @@ add_library(Protocol STATIC
     "Type.h"
     "Queue.h" "Queue.cpp"
     "Factory.h"
+ )
+
+# Enable precompiled headers using CMake's built-in support
+target_precompile_headers(Protocol PRIVATE 
+	"${CMAKE_CURRENT_SOURCE_DIR}/Pch.h"
 )
+
+# Skip the generation of Pch for .pb.cc files
+set_source_files_properties(${PROTO_SRCS} PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
 # Link libraries
 target_link_libraries(Protocol PUBLIC
-    protobuf::libprotobuf
+    protobuf::libprotobuf Network Core
 )
 
 # Set include directories

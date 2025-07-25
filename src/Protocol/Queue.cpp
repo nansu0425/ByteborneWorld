@@ -1,30 +1,35 @@
 ﻿#include "Queue.h"
 #include "Factory.h"
+#include "Network/Packet.h"
 
 namespace proto
 {
-    void MessageQueue::push(MessageType type, const void* message, int size)
+    void MessageQueue::push(net::SessionId sessionId, const net::PacketView& packetView)
     {
-        MessagePtr msg = MessageFactory::createMessage(type);
-        if (msg && msg->ParseFromArray(message, size))
-        {
-            m_queue.emplace_back(type, std::move(msg));
-        }
+        // 메시지 큐 엔트리 생성
+        MessageQueueEntry entry;
+        entry.sessionId = sessionId;
+        entry.messageType = static_cast<MessageType>(packetView.header->id);
+        entry.message = MessageFactory::createMessage(entry.messageType);
+
+        // 패킷의 페이로드를 메시지로 파싱
+        const void* payload = packetView.payload;
+        const int payloadSize = packetView.header->size - sizeof(net::PacketHeader);
+        const bool parsingResult = entry.message->ParseFromArray(payload, payloadSize);
+        assert(parsingResult);
+
+        // 파싱이 성공하면 큐에 추가
+        m_queue.emplace_back(std::move(entry));
     }
 
-    MessagePtr MessageQueue::pop(MessageType& type)
+    MessageQueueEntry MessageQueue::pop()
     {
-        if (m_queue.empty())
-        {
-            type = MessageType::None;
-            return nullptr;
-        }
+        assert(m_queue.empty() == false);
 
         auto front = std::move(m_queue.front());
         m_queue.pop_front();
-        type = front.first;
 
-        return front.second;
+        return front;
     }
 
     bool MessageQueue::isEmpty() const

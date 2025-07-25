@@ -4,17 +4,25 @@
 #include <memory>
 
 #include "Type.h"
+#include "Network/Session.h"
 
 namespace proto
 {
+    struct MessageQueueEntry
+    {
+        net::SessionId sessionId;
+        MessagePtr message;
+        MessageType messageType;
+    };
+
     class MessageQueue
     {
     public:
-        void push(MessageType type, const void* message, int size);
-        MessagePtr pop(MessageType& type);
+        void push(net::SessionId sessionId, const net::PacketView& packetView);
+        MessageQueueEntry pop();
         bool isEmpty() const;
 
     private:
-        std::deque<std::pair<MessageType, MessagePtr>> m_queue;
+        std::deque<MessageQueueEntry> m_queue;
     };
 }

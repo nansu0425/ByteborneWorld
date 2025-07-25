@@ -189,21 +189,15 @@ void DummyClient::handleSessionEvent(net::SessionReceiveEvent& event)
     }
 
     auto session = m_sessionManager.findSession(event.sessionId);
-    if (!session)
-    {
-        spdlog::error("[DummyClient] 세션을 찾을 수 없습니다: {}", event.sessionId);
-        assert(false);
-        return;
-    }
+    assert(session);
 
     net::PacketView packetView;
     while (session->getFrontPacket(packetView))
     {
         assert(packetView.isValid());
 
-        // 패킷의 페이로드를 메시지 큐에 추가
-        proto::MessageType type = static_cast<proto::MessageType>(packetView.header->id);
-        m_messageQueue.push(type, packetView.payload, packetView.header->size - sizeof(net::PacketHeader));
+        // 패킷의 페이로드를 메시지로 파싱하여 큐에 추가
+        m_messageQueue.push(event.sessionId, packetView);
 
         // 수신 버퍼에서 패킷 제거
         session->popFrontPacket();
@@ -215,17 +209,16 @@ void DummyClient::handleSessionEvent(net::SessionReceiveEvent& event)
 
 void DummyClient::processMessages()
 {
-    proto::MessageType type;
-    proto::MessagePtr message;
-
-    while (m_running.load() && (message = m_messageQueue.pop(type)))
+    while (m_running.load() && (m_messageQueue.isEmpty() == false))
     {
-        switch (type)
+        proto::MessageQueueEntry entry = m_messageQueue.pop();
+
+        switch (entry.messageType)
         {
         case proto::MessageType::S2C_Chat:
             {
-                auto chatMessage = std::static_pointer_cast<proto::S2C_Chat>(message);
-                spdlog::info("[DummyClient] 서버로부터 채팅 메시지 수신: {}", chatMessage->content());
+                auto chat = std::static_pointer_cast<proto::S2C_Chat>(entry.message);
+                spdlog::info("[DummyClient] Session {}: 채팅 메시지 수신: {}", entry.sessionId, chat->content());
             }
             break;
         default:
