@@ -1,5 +1,4 @@
-﻿#include "Pch.h"
-#include "Core/Context.h"
+﻿#include "Core/Context.h"
 #include "Server.h"
 
 int main()

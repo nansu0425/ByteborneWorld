@@ -1,5 +1,4 @@
-﻿#include "Pch.h"
-#include "Server.h"
+﻿#include "Server.h"
 #include "Network/Packet.h"
 #include "Protocol/Type.h"
 

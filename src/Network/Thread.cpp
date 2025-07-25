@@ -1,5 +1,4 @@
-﻿#include "Pch.h"
-#include "Thread.h"
+﻿#include "Thread.h"
 
 namespace net
 {

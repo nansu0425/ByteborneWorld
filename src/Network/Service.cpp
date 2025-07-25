@@ -1,5 +1,4 @@
-﻿#include "Pch.h"
-#include "Service.h"
+﻿#include "Service.h"
 #include "Session.h"
 #include "Event.h"
 
