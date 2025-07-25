@@ -4,6 +4,7 @@
 #include "Network/Session.h"
 #include "Network/Service.h"
 #include "Network/Event.h"
+#include "Protocol/Serializer.h"
 
 class WorldServer
 {
@@ -37,4 +38,5 @@ private:
     net::SessionEventQueue m_sessionEventQueue;
     net::SessionManager m_sessionManager;
     net::SendBufferManager m_sendBufferManager;
+    proto::MessageSerializer m_messageSerializer;
 };

@@ -58,7 +58,10 @@ namespace net
     class SessionManager
     {
     public:
+        bool send(SessionId sessionId, const SendBufferChunkPtr& chunk);
         void broadcast(const SendBufferChunkPtr& chunk);
+        void broadcast(const std::vector<SessionId>& sessionIds, const SendBufferChunkPtr& chunk);
+
         void stopAllSessions();
 
         void addSession(const SessionPtr& session);

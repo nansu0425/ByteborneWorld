@@ -5,6 +5,7 @@
 
 WorldServer::WorldServer()
     : m_running(false)
+    , m_messageSerializer(m_sendBufferManager)
 {
     m_serverService = net::ServerService::createInstance(
         m_ioThreadPool.getContext(), m_serviceEventQueue, 12345);
@@ -215,9 +216,9 @@ void WorldServer::handleSessionEvent(net::SessionReceiveEvent& event)
 
 void WorldServer::broadcastMessage(const std::string& message)
 {
-    // S2C_Chat 메시지를 생성하고 직렬화
-    net::SendBufferChunkPtr chunk = proto::MessageSerializer::createAndSerialize<proto::S2C_Chat>(
-        m_sendBufferManager, message);
+    proto::S2C_Chat chat;
+    chat.set_content(message);
 
+    net::SendBufferChunkPtr chunk = m_messageSerializer.serializeToSendBuffer(chat);
     m_sessionManager.broadcast(chunk);
 }

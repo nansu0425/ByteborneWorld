@@ -283,11 +283,37 @@ namespace net
         m_eventQueue.push(std::move(event));
     }
 
+    bool SessionManager::send(SessionId sessionId, const SendBufferChunkPtr& chunk)
+    {
+        auto session = findSession(sessionId);
+        if (!session || !session->isRunning())
+        {
+            spdlog::error("[SessionManager] 세션 {}가 존재하지 않거나 실행 중이 아닙니다.", sessionId);
+            return false;
+        }
+
+        session->send(chunk);
+
+        return true;
+    }
+
     void SessionManager::broadcast(const SendBufferChunkPtr& chunk)
     {
         for (const auto& pair : m_sessions)
         {
             pair.second->send(chunk);
+        }
+    }
+
+    void SessionManager::broadcast(const std::vector<SessionId>& sessionIds, const SendBufferChunkPtr& chunk)
+    {
+        for (SessionId sessionId : sessionIds)
+        {
+            auto session = findSession(sessionId);
+            if (session && session->isRunning())
+            {
+                session->send(chunk);
+            }
         }
     }
 
