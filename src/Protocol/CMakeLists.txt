@@ -17,6 +17,7 @@ add_library(Protocol STATIC
     "Queue.h" "Queue.cpp"
     "Factory.h"
     "Dispatcher.h" "Dispatcher.cpp"
+    "Serializer.h"
 )
 
 # Enable precompiled headers using CMake's built-in support
