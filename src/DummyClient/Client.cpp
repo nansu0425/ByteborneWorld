@@ -100,13 +100,10 @@ void DummyClient::close()
 
     m_sessionManager.stopAllSessions();
 
-    // 서비스 이벤트 큐가 비워지고, 모든 세션이 제거될 때까지 대기
-    while ((!m_serviceEventQueue.isEmpty()) ||
-           (!m_sessionManager.isEmpty()))
+    // 모든 세션이 제거될 때까지 대기
+    while (m_sessionManager.isEmpty() == false)
     {
-        processServiceEvents();
         processSessionEvents();
-
         std::this_thread::yield();
     }
 
