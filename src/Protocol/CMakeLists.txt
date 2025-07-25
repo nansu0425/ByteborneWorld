@@ -16,7 +16,8 @@ add_library(Protocol STATIC
     "Type.h"
     "Queue.h" "Queue.cpp"
     "Factory.h"
- )
+    "Dispatcher.h" "Dispatcher.cpp"
+)
 
 # Enable precompiled headers using CMake's built-in support
 target_precompile_headers(Protocol PRIVATE 
@@ -33,5 +34,5 @@ target_link_libraries(Protocol PUBLIC
 
 # Set include directories
 target_include_directories(Protocol PUBLIC
-    ${CMAKE_CURRENT_BINARY_DIR}  # For generated headers
+    ${CMAKE_CURRENT_BINARY_DIR}  # For generated .ph.h files
 )

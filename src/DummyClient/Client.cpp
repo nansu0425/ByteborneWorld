@@ -7,6 +7,8 @@ DummyClient::DummyClient()
 {
     m_clientService = net::ClientService::createInstance(
         m_ioThreadPool.getContext(), m_serviceEventQueue, net::ResolveTarget{"localhost", "12345"}, 5);
+
+    registerMessageHandlers();
 }
 
 void DummyClient::start()
@@ -211,17 +213,22 @@ void DummyClient::processMessages()
     while (m_running.load() && (m_messageQueue.isEmpty() == false))
     {
         proto::MessageQueueEntry entry = m_messageQueue.pop();
-
-        switch (entry.messageType)
-        {
-        case proto::MessageType::S2C_Chat:
-            {
-                auto chat = std::static_pointer_cast<proto::S2C_Chat>(entry.message);
-                spdlog::info("[DummyClient] Session {}: 채팅 메시지 수신: {}", entry.sessionId, chat->content());
-            }
-            break;
-        default:
-            break;
-        }
+        m_messageDispatcher.dispatch(entry);
     }
+}
+
+void DummyClient::registerMessageHandlers()
+{
+    m_messageDispatcher.registerHandler(
+        proto::MessageType::S2C_Chat,
+        [this](net::SessionId sessionId, const proto::MessagePtr& message)
+        {
+            handleChatMessage(sessionId, message);
+        });
+}
+
+void DummyClient::handleChatMessage(net::SessionId sessionId, const proto::MessagePtr& message)
+{
+    const auto& chat = std::static_pointer_cast<proto::S2C_Chat>(message);
+    spdlog::info("[DummyClient] Session {}: 채팅 메시지 수신: {}", sessionId, chat->content());
 }
