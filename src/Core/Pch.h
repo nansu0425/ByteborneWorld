@@ -11,5 +11,11 @@
 #include <atomic>
 #include <mutex>
 #include <deque>
+#include <functional>
+#include <queue>
+#include <chrono>
+#include <memory>
+#include <unordered_set>
+#include <ctime>
 
 #include <spdlog/spdlog.h>

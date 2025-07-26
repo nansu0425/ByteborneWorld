@@ -5,6 +5,7 @@ find_package(spdlog CONFIG REQUIRED)
 add_library(Core STATIC
     "Context.h" "Context.cpp"
     "LockQueue.h" "LockQueue.cpp"
+    "Timer.h" "Timer.cpp"
 )
 
 # Enable precompiled headers using CMake's built-in support

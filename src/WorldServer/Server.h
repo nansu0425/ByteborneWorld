@@ -5,6 +5,7 @@
 #include "Network/Service.h"
 #include "Network/Event.h"
 #include "Protocol/Serializer.h"
+#include "Core/Timer.h"
 
 class WorldServer
 {
@@ -27,7 +28,9 @@ private:
     void handleSessionEvent(net::SessionCloseEvent& event);
     void handleSessionEvent(net::SessionReceiveEvent& event);
 
-    void broadcastMessage(const std::string& message);
+    void processTimers();
+    void broadcastChatRepeating(const std::string& message);
+    void broadcastChat(const std::string& message);
 
 private:
     std::atomic<bool> m_running;
@@ -39,4 +42,5 @@ private:
     net::SessionManager m_sessionManager;
     net::SendBufferManager m_sendBufferManager;
     proto::MessageSerializer m_messageSerializer;
+    core::Timer m_timer;
 };

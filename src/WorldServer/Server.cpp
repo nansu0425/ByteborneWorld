@@ -60,7 +60,7 @@ void WorldServer::loop()
     auto lastTickCountTime = std::chrono::steady_clock::now();
     int32_t tickCount = 0;
 
-    std::string sendMessage = "Hello from WorldServer!";
+    broadcastChatRepeating("Hello, World!");
 
     while (m_running.load())
     {
@@ -68,7 +68,7 @@ void WorldServer::loop()
 
         processServiceEvents();
         processSessionEvents();
-        broadcastMessage(sendMessage);
+        processTimers();
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -99,6 +99,9 @@ void WorldServer::close()
     assert(m_running.load() == false);
 
     spdlog::info("[WorldServer] 서버 닫기");
+
+    // 모든 타이머 제거
+    m_timer.clear();
 
     m_sessionManager.stopAllSessions();
 
@@ -211,7 +214,30 @@ void WorldServer::handleSessionEvent(net::SessionReceiveEvent& event)
     session->receive();
 }
 
-void WorldServer::broadcastMessage(const std::string& message)
+void WorldServer::processTimers()
+{
+    // 만료된 타이머들을 처리
+    size_t processedCount = m_timer.update();
+    
+    // 디버그 모드에서만 처리된 타이머 개수 로그 출력
+    if (processedCount > 0)
+    {
+        spdlog::debug("[WorldServer] {} 개의 타이머를 처리했습니다", processedCount);
+    }
+}
+
+void WorldServer::broadcastChatRepeating(const std::string& message)
+{
+    m_timer.scheduleRepeating(
+        std::chrono::milliseconds(0), // 즉시 실행
+        std::chrono::milliseconds(1000), // 1초 간격
+        [this, message = message]()
+        {
+            broadcastChat(message);
+        });
+}
+
+void WorldServer::broadcastChat(const std::string& message)
 {
     proto::S2C_Chat chat;
     chat.set_content(message);
