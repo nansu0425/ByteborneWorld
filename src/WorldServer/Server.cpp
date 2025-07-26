@@ -9,6 +9,8 @@ WorldServer::WorldServer()
 {
     m_serverService = net::ServerService::createInstance(
         m_ioThreadPool.getContext(), m_serviceEventQueue, 12345);
+
+    registerMessageHandlers();
 }
 
 void WorldServer::start()
@@ -60,15 +62,14 @@ void WorldServer::loop()
     auto lastTickCountTime = std::chrono::steady_clock::now();
     int32_t tickCount = 0;
 
-    broadcastChatRepeating("Hello, World!");
-
     while (m_running.load())
     {
         auto start = std::chrono::steady_clock::now();
 
         processServiceEvents();
         processSessionEvents();
-        processTimers();
+        processMessages();
+        m_timer.update();
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -99,9 +100,6 @@ void WorldServer::close()
     assert(m_running.load() == false);
 
     spdlog::info("[WorldServer] 서버 닫기");
-
-    // 모든 타이머 제거
-    m_timer.clear();
 
     m_sessionManager.stopAllSessions();
 
@@ -192,21 +190,15 @@ void WorldServer::handleSessionEvent(net::SessionReceiveEvent& event)
     }
 
     auto session = m_sessionManager.findSession(event.sessionId);
-    if (!session)
+    assert(session);
+
+    net::PacketView packetView;
+    while (session->getFrontPacket(packetView))
     {
-        spdlog::error("[WorldServer] 세션을 찾을 수 없습니다: {}", event.sessionId);
-        assert(false);
-        return;
-    }
+        // 패킷의 페이로드를 메시지로 파싱하여 큐에 추가
+        m_messageQueue.push(event.sessionId, packetView);
 
-    net::PacketView packet;
-    while (session->getFrontPacket(packet))
-    {
-        assert(packet.isValid());
-
-        // TODO: 패킷 처리 로직 추가
-
-        // 패킷 처리 후 수신 버퍼에서 제거
+        // 수신 버퍼에서 패킷 제거
         session->popFrontPacket();
     }
 
@@ -214,34 +206,34 @@ void WorldServer::handleSessionEvent(net::SessionReceiveEvent& event)
     session->receive();
 }
 
-void WorldServer::processTimers()
+void WorldServer::processMessages()
 {
-    // 만료된 타이머들을 처리
-    size_t processedCount = m_timer.update();
-    
-    // 디버그 모드에서만 처리된 타이머 개수 로그 출력
-    if (processedCount > 0)
+    while (m_running.load() && (m_messageQueue.isEmpty() == false))
     {
-        spdlog::debug("[WorldServer] {} 개의 타이머를 처리했습니다", processedCount);
+        proto::MessageQueueEntry entry = m_messageQueue.pop();
+        m_messageDispatcher.dispatch(entry);
     }
 }
 
-void WorldServer::broadcastChatRepeating(const std::string& message)
+void WorldServer::registerMessageHandlers()
 {
-    m_timer.scheduleRepeating(
-        std::chrono::milliseconds(0), // 즉시 실행
-        std::chrono::milliseconds(1000), // 1초 간격
-        [this, message = message]()
+    m_messageDispatcher.registerHandler(
+        proto::MessageType::C2S_Chat,
+        [this](net::SessionId sessionId, const proto::MessagePtr& message)
         {
-            broadcastChat(message);
+            handleMessage(sessionId, *std::static_pointer_cast<proto::C2S_Chat>(message));
         });
 }
 
-void WorldServer::broadcastChat(const std::string& message)
+void WorldServer::handleMessage(net::SessionId sessionId, const proto::C2S_Chat& message)
 {
-    proto::S2C_Chat chat;
-    chat.set_content(message);
+    proto::S2C_Chat response;
+    response.set_content(message.content());
 
-    net::SendBufferChunkPtr chunk = m_messageSerializer.serializeToSendBuffer(chat);
-    m_sessionManager.broadcast(chunk);
+    net::SendBufferChunkPtr chunk = m_messageSerializer.serializeToSendBuffer(response);
+    bool result = m_sessionManager.send(sessionId, chunk);
+    if (result == false)
+    {
+        spdlog::error("[WorldServer] 세션 {}에 S2C_Chat 전송 실패", sessionId);
+    }
 }

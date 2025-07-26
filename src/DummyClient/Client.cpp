@@ -4,9 +4,10 @@
 
 DummyClient::DummyClient()
     : m_running(false)
+    , m_messageSerializer(m_sendBufferManager)
 {
     m_clientService = net::ClientService::createInstance(
-        m_ioThreadPool.getContext(), m_serviceEventQueue, net::ResolveTarget{"localhost", "12345"}, 5);
+        m_ioThreadPool.getContext(), m_serviceEventQueue, net::ResolveTarget{"localhost", "12345"}, 10);
 
     registerMessageHandlers();
 }
@@ -67,6 +68,7 @@ void DummyClient::loop()
         processServiceEvents();
         processSessionEvents();
         processMessages();
+        m_timer.update();
         ++tickCount;
 
         auto end = std::chrono::steady_clock::now();
@@ -150,6 +152,29 @@ void DummyClient::handleServiceEvent(net::ServiceConnectEvent& event)
     auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
     m_sessionManager.addSession(session);
     session->start();
+
+    m_timer.scheduleRepeating(
+        std::chrono::milliseconds(0),
+        std::chrono::milliseconds(250),
+        [this, sessionId = session->getSessionId()]()
+        {
+            if (m_running.load() == false)
+            {
+                return false;
+            }
+
+            proto::C2S_Chat chat;
+            chat.set_content("Hello, Byteborne World!");
+
+            net::SendBufferChunkPtr chunk =  m_messageSerializer.serializeToSendBuffer(chat);
+            if (m_sessionManager.send(sessionId, chunk) == false)
+            {
+                return false;
+            }
+
+            return true;
+        }
+    );
 }
 
 void DummyClient::processSessionEvents()
@@ -192,8 +217,6 @@ void DummyClient::handleSessionEvent(net::SessionReceiveEvent& event)
     net::PacketView packetView;
     while (session->getFrontPacket(packetView))
     {
-        assert(packetView.isValid());
-
         // 패킷의 페이로드를 메시지로 파싱하여 큐에 추가
         m_messageQueue.push(event.sessionId, packetView);
 
@@ -220,12 +243,11 @@ void DummyClient::registerMessageHandlers()
         proto::MessageType::S2C_Chat,
         [this](net::SessionId sessionId, const proto::MessagePtr& message)
         {
-            handleChatMessage(sessionId, message);
+            handleMessage(sessionId, *std::static_pointer_cast<proto::S2C_Chat>(message));
         });
 }
 
-void DummyClient::handleChatMessage(net::SessionId sessionId, const proto::MessagePtr& message)
+void DummyClient::handleMessage(net::SessionId sessionId, const proto::S2C_Chat& message)
 {
-    const auto& chat = std::static_pointer_cast<proto::S2C_Chat>(message);
-    spdlog::info("[DummyClient] Session {}: 채팅 메시지 수신: {}", sessionId, chat->content());
+    spdlog::info("[DummyClient] Session {}: S2C_Chat 수신: {}", sessionId, message.content());
 }

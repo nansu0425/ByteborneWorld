@@ -288,7 +288,6 @@ namespace net
         auto session = findSession(sessionId);
         if (!session || !session->isRunning())
         {
-            spdlog::error("[SessionManager] 세션 {}가 존재하지 않거나 실행 중이 아닙니다.", sessionId);
             return false;
         }
 

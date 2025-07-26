@@ -62,18 +62,18 @@ namespace core
                 continue;
             }
 
+            assert(task->callback);
+
             // 콜백 실행
-            if (task->callback)
-            {
-                task->callback();
-                ++processedCount;
-            }
+            bool callbackResult = task->callback();
+            ++processedCount;
 
             // 반복 타이머인 경우 다시 스케줄링
-            if (task->isRepeating && task->interval > Duration::zero())
+            if (callbackResult &&
+                task->isRepeating &&
+                (task->interval > Duration::zero()))
             {
                 task->executeTime += task->interval;
-                task->id = generateNextId(); // 새로운 ID 할당 (취소 방지)
                 m_timerQueue.push(task);
             }
         }
@@ -110,11 +110,6 @@ namespace core
         auto task = std::make_shared<TimerTask>(id, executeTime, std::move(callback), isRepeating, interval);
         
         m_timerQueue.push(task);
-        
-        spdlog::debug("[Timer] 타이머 등록: ID={}, 실행시간={}, 반복={}", 
-                     id, 
-                     std::chrono::duration_cast<std::chrono::milliseconds>(executeTime.time_since_epoch()).count(),
-                     isRepeating);
         
         return id;
     }

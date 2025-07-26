@@ -13,7 +13,7 @@ namespace core
     using TimerId = uint64_t;
     using TimePoint = std::chrono::steady_clock::time_point;
     using Duration = std::chrono::milliseconds;
-    using TimerCallback = std::function<void()>;
+    using TimerCallback = std::function<bool()>;
 
     // 타이머 작업을 나타내는 구조체
     struct TimerTask

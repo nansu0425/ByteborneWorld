@@ -6,6 +6,8 @@ namespace proto
 {
     void MessageQueue::push(net::SessionId sessionId, const net::PacketView& packetView)
     {
+        assert(packetView.isValid());
+
         // 메시지 큐 엔트리 생성
         MessageQueueEntry entry;
         entry.sessionId = sessionId;
