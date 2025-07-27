@@ -19,7 +19,8 @@ namespace proto
     {
     public:
         void push(net::SessionId sessionId, const net::PacketView& packetView);
-        MessageQueueEntry pop();
+        void pop();
+        const MessageQueueEntry& front() const;
         bool isEmpty() const;
 
     private:

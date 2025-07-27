@@ -24,14 +24,18 @@ namespace proto
         m_queue.emplace_back(std::move(entry));
     }
 
-    MessageQueueEntry MessageQueue::pop()
+    void MessageQueue::pop()
     {
         assert(m_queue.empty() == false);
 
-        auto front = std::move(m_queue.front());
         m_queue.pop_front();
+    }
 
-        return front;
+    const MessageQueueEntry& MessageQueue::front() const
+    {
+        assert(m_queue.empty() == false);
+
+        return m_queue.front();
     }
 
     bool MessageQueue::isEmpty() const

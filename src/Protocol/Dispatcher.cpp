@@ -16,6 +16,8 @@ namespace proto
     void MessageDispatcher::dispatch(const MessageQueueEntry& entry)
     {
         auto it = m_handlers.find(entry.messageType);
+        assert(it != m_handlers.end());
+
         if (it != m_handlers.end())
         {
             it->second(entry.sessionId, entry.message);

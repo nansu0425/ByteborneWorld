@@ -210,8 +210,8 @@ void WorldServer::processMessages()
 {
     while (m_running.load() && (m_messageQueue.isEmpty() == false))
     {
-        proto::MessageQueueEntry entry = m_messageQueue.pop();
-        m_messageDispatcher.dispatch(entry);
+        m_messageDispatcher.dispatch(m_messageQueue.front());
+        m_messageQueue.pop();
     }
 }
 
