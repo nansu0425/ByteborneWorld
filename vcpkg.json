@@ -15,7 +15,7 @@
     },
     {
       "name": "sfml",
-      "version>=": "2.6.1"
+      "version>=": "2.6.2"
     }
   ],
   "overrides": [
@@ -29,7 +29,7 @@
     },
     {
       "name": "sfml",
-      "version": "2.6.1#1"
+      "version": "2.6.2#0"
     }
   ]
 }
