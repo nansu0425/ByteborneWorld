@@ -45,7 +45,7 @@ src/
 
 ### 전제 조건
 - Visual Studio 2022
-- Visual Studio Installer애서 **C++를 사용한 데스크톱 개발** 설치
+- Visual Studio Installer에서 **C++를 사용한 데스크톱 개발** 설치
 
 ### 빌드 단계
 
