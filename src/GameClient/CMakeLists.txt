@@ -1,6 +1,7 @@
 # Add source to this project's executable.
 add_executable (GameClient
     "Main.cpp"
+    "GameClient.h" "GameClient.cpp"
 )
 
 # Find packages in correct order
