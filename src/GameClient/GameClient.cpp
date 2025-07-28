@@ -121,7 +121,7 @@ void GameClient::processEvents()
     sf::Event event;
     while (m_window->pollEvent(event))
     {
-        ImGui::SFML::ProcessEvent(event);
+        ImGui::SFML::ProcessEvent(*m_window, event);
 
         if (event.type == sf::Event::Closed)
         {
