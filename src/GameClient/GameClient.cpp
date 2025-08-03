@@ -1,5 +1,8 @@
 ﻿#include "GameClient.h"
 #include <cstdlib>
+#include <ctime>
+#include <sstream>
+#include <iomanip>
 
 GameClient::GameClient()
     : m_running(false)
@@ -7,11 +10,20 @@ GameClient::GameClient()
     , m_clearColor(sf::Color::Black)
     , m_showDemoWindow(true)
     , m_showTestWindow(true)
+    , m_showChatWindow(true)
     , m_testFloat(0.0f)
     , m_testCounter(0)
     , m_colorEdit{0.0f, 0.0f, 0.0f, 1.0f}
     , m_textBuffer{"Hello, World!"}
-{}
+    , m_chatInputBuffer{""}
+    , m_usernameBuffer{"Player"}
+    , m_autoScroll(true)
+    , m_scrollToBottom(false)
+{
+    // 환영 메시지 추가
+    addChatMessage("System", "채팅창에 오신 것을 환영합니다!");
+    addChatMessage("System", "메시지를 입력하고 Enter 키를 눌러보세요.");
+}
 
 GameClient::~GameClient()
 {
@@ -139,6 +151,7 @@ void GameClient::renderImGuiWindows()
 {
     renderDemoWindow();
     renderTestWindow();
+    renderChatWindow();
     renderMainMenuBar();
 }
 
@@ -216,6 +229,83 @@ void GameClient::renderTestWindow()
     }
 }
 
+void GameClient::renderChatWindow()
+{
+    if (!m_showChatWindow) return;
+
+    ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("채팅창", &m_showChatWindow))
+    {
+        // 상단 툴바
+        ImGui::Text("사용자명:");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(100);
+        ImGui::InputText("##username", m_usernameBuffer, sizeof(m_usernameBuffer));
+        
+        ImGui::SameLine();
+        ImGui::Checkbox("자동 스크롤", &m_autoScroll);
+        
+        ImGui::SameLine();
+        if (ImGui::Button("채팅 지우기"))
+        {
+            m_chatMessages.clear();
+        }
+
+        ImGui::Separator();
+
+        // 채팅 메시지 영역
+        const float footer_height_to_reserve = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
+        if (ImGui::BeginChild("ChatMessages", ImVec2(0, -footer_height_to_reserve), false, ImGuiWindowFlags_HorizontalScrollbar))
+        {
+            for (const auto& msg : m_chatMessages)
+            {
+                // 시간 스탬프 표시 (회색)
+                ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "[%s]", msg.timestamp.c_str());
+                ImGui::SameLine();
+                
+                // 발신자 이름 표시 (노란색)
+                ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s:", msg.sender.c_str());
+                ImGui::SameLine();
+                
+                // 메시지 내용 표시 (흰색)
+                ImGui::TextWrapped("%s", msg.message.c_str());
+            }
+
+            // 자동 스크롤 처리
+            if (m_scrollToBottom || (m_autoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()))
+            {
+                ImGui::SetScrollHereY(1.0f);
+            }
+            m_scrollToBottom = false;
+        }
+        ImGui::EndChild();
+
+        // 메시지 입력 영역
+        ImGui::Separator();
+        
+        // 입력 필드에 포커스 설정
+        if (ImGui::IsWindowAppearing())
+        {
+            ImGui::SetKeyboardFocusHere();
+        }
+        
+        ImGui::SetNextItemWidth(-70);
+        bool enter_pressed = ImGui::InputText("##chatinput", m_chatInputBuffer, sizeof(m_chatInputBuffer), 
+                                            ImGuiInputTextFlags_EnterReturnsTrue);
+        
+        ImGui::SameLine();
+        bool send_button = ImGui::Button("전송");
+        
+        // Enter 키 또는 전송 버튼 클릭 시 메시지 전송
+        if (enter_pressed || send_button)
+        {
+            sendChatMessage();
+            ImGui::SetKeyboardFocusHere(-1); // 입력 필드에 다시 포커스
+        }
+    }
+    ImGui::End();
+}
+
 void GameClient::renderMainMenuBar()
 {
     if (ImGui::BeginMainMenuBar())
@@ -232,6 +322,7 @@ void GameClient::renderMainMenuBar()
         {
             ImGui::MenuItem("Demo Window", nullptr, &m_showDemoWindow);
             ImGui::MenuItem("Test Window", nullptr, &m_showTestWindow);
+            ImGui::MenuItem("Chat Window", nullptr, &m_showChatWindow);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Help"))
@@ -259,4 +350,46 @@ void GameClient::moveCircleRandomly()
         static_cast<float>(rand() % 700),
         static_cast<float>(rand() % 500)
     );
+}
+
+void GameClient::sendChatMessage()
+{
+    // 빈 메시지는 전송하지 않음
+    if (strlen(m_chatInputBuffer) == 0) return;
+    
+    // 메시지를 채팅 목록에 추가
+    addChatMessage(m_usernameBuffer, m_chatInputBuffer);
+    
+    // 입력 버퍼 클리어
+    memset(m_chatInputBuffer, 0, sizeof(m_chatInputBuffer));
+    
+    // 하단으로 스크롤
+    scrollChatToBottom();
+}
+
+void GameClient::addChatMessage(const std::string& sender, const std::string& message)
+{
+    ChatMessage chatMsg;
+    chatMsg.sender = sender;
+    chatMsg.message = message;
+    
+    // 현재 시간을 타임스탬프로 생성
+    auto now = std::time(nullptr);
+    auto tm = *std::localtime(&now);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%H:%M:%S");
+    chatMsg.timestamp = oss.str();
+    
+    m_chatMessages.push_back(chatMsg);
+    
+    // 최대 1000개 메시지만 보관 (메모리 절약)
+    if (m_chatMessages.size() > 1000)
+    {
+        m_chatMessages.erase(m_chatMessages.begin());
+    }
+}
+
+void GameClient::scrollChatToBottom()
+{
+    m_scrollToBottom = true;
 }

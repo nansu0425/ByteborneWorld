@@ -10,6 +10,8 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <vector>
+#include <string>
 
 class GameClient
 {
@@ -44,10 +46,16 @@ private:
 
     void renderDemoWindow();
     void renderTestWindow();
+    void renderChatWindow();
     void renderMainMenuBar();
 
     void handleWindowClose();
     void moveCircleRandomly();
+    
+    // 채팅 관련 함수들
+    void sendChatMessage();
+    void addChatMessage(const std::string& sender, const std::string& message);
+    void scrollChatToBottom();
 
 private:
     // 실행 상태
@@ -63,8 +71,22 @@ private:
     // ImGui 상태 변수들
     bool m_showDemoWindow;
     bool m_showTestWindow;
+    bool m_showChatWindow;
     float m_testFloat;
     int m_testCounter;
     float m_colorEdit[4];
     char m_textBuffer[256];
+    
+    // 채팅 관련 변수들
+    struct ChatMessage {
+        std::string sender;
+        std::string message;
+        std::string timestamp;
+    };
+    
+    std::vector<ChatMessage> m_chatMessages;
+    char m_chatInputBuffer[256];
+    char m_usernameBuffer[64];
+    bool m_autoScroll;
+    bool m_scrollToBottom;
 };
