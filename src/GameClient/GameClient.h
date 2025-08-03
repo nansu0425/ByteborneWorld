@@ -38,6 +38,7 @@ private:
     void initializeWindow();
     void initializeImGui();
     void initializeTestObjects();
+    void initializeKoreanFont();
 
     void processEvents();
     void updateImGui();
@@ -76,6 +77,9 @@ private:
     int m_testCounter;
     float m_colorEdit[4];
     char m_textBuffer[256];
+    
+    // 폰트 관련
+    ImFont* m_koreanFont;
     
     // 채팅 관련 변수들
     struct ChatMessage {

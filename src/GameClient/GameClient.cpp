@@ -16,13 +16,14 @@ GameClient::GameClient()
     , m_colorEdit{0.0f, 0.0f, 0.0f, 1.0f}
     , m_textBuffer{"Hello, World!"}
     , m_chatInputBuffer{""}
-    , m_usernameBuffer{"Player"}
+    , m_usernameBuffer{"플레이어"}
     , m_autoScroll(true)
     , m_scrollToBottom(false)
+    , m_koreanFont(nullptr)
 {
     // 환영 메시지 추가
-    addChatMessage("System", "채팅창에 오신 것을 환영합니다!");
-    addChatMessage("System", "메시지를 입력하고 Enter 키를 눌러보세요.");
+    addChatMessage("시스템", "채팅창에 오신 것을 환영합니다!");
+    addChatMessage("시스템", "메시지를 입력하고 Enter 키를 눌러보세요.");
 }
 
 GameClient::~GameClient()
@@ -76,6 +77,7 @@ void GameClient::initialize()
     printVersionInfo();
     initializeWindow();
     initializeImGui();
+    initializeKoreanFont();
     initializeTestObjects();
 }
 
@@ -120,6 +122,68 @@ void GameClient::initializeImGui()
 {
     ImGui::SFML::Init(*m_window);
     spdlog::info("[GameClient] ImGui-SFML initialized successfully!");
+}
+
+void GameClient::initializeKoreanFont()
+{
+    ImGuiIO& io = ImGui::GetIO();
+    
+    // 한글 범위 설정
+    static const ImWchar korean_ranges[] = {
+        0x0020, 0x00FF, // Basic Latin + Latin Supplement
+        0x3131, 0x3163, // Korean Jamo
+        0xAC00, 0xD7A3, // Korean Syllables
+        0,
+    };
+    
+    // 시스템 폰트 경로들 시도
+    std::vector<std::string> font_paths = {
+        "C:/Windows/Fonts/malgun.ttf",     // 맑은 고딕
+        "C:/Windows/Fonts/gulim.ttc",      // 굴림
+        "C:/Windows/Fonts/batang.ttc",     // 바탕
+        "C:/Windows/Fonts/dotum.ttc",      // 돋움
+    };
+    
+    bool font_loaded = false;
+    
+    for (const auto& font_path : font_paths)
+    {
+        FILE* font_file = nullptr;
+        fopen_s(&font_file, font_path.c_str(), "rb");
+        
+        if (font_file)
+        {
+            fclose(font_file);
+            
+            // 폰트 로드 시도
+            m_koreanFont = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 16.0f, nullptr, korean_ranges);
+            
+            if (m_koreanFont)
+            {
+                font_loaded = true;
+                spdlog::info("[GameClient] Korean font loaded: {}", font_path);
+                break;
+            }
+        }
+    }
+    
+    if (!font_loaded)
+    {
+        // 폰트 로드 실패 시 기본 폰트에 한글 범위 추가 시도
+        ImFontConfig font_config;
+        font_config.MergeMode = true;
+        
+        // 내장된 기본 폰트에 한글 범위만 추가 (한글은 여전히 표시되지 않지만 크래시 방지)
+        io.Fonts->AddFontDefault(&font_config);
+        
+        spdlog::warn("[GameClient] Could not load Korean font, using default font");
+    }
+    
+    // 폰트 아틀라스 빌드
+    io.Fonts->Build();
+    
+    // ImGui-SFML에 폰트 업데이트 알림
+    ImGui::SFML::UpdateFontTexture();
 }
 
 void GameClient::initializeTestObjects()
@@ -233,6 +297,12 @@ void GameClient::renderChatWindow()
 {
     if (!m_showChatWindow) return;
 
+    // 한글 폰트가 로드되었다면 푸시
+    if (m_koreanFont)
+    {
+        ImGui::PushFont(m_koreanFont);
+    }
+
     ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
     if (ImGui::Begin("채팅창", &m_showChatWindow))
     {
@@ -304,6 +374,12 @@ void GameClient::renderChatWindow()
         }
     }
     ImGui::End();
+
+    // 한글 폰트가 로드되었다면 팝
+    if (m_koreanFont)
+    {
+        ImGui::PopFont();
+    }
 }
 
 void GameClient::renderMainMenuBar()
