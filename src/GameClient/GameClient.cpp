@@ -282,13 +282,22 @@ void GameClient::renderChatWindow()
         // 메시지 입력 영역
         ImGui::Separator();
         
-        // 입력 필드에 포커스 설정
+        // 채팅창이 처음 나타날 때 또는 메시지 전송 후 입력 필드에 포커스 설정
+        static bool setFocusOnInput = false;
         if (ImGui::IsWindowAppearing())
         {
-            ImGui::SetKeyboardFocusHere();
+            setFocusOnInput = true;
         }
         
         ImGui::SetNextItemWidth(-70);
+        
+        // 포커스가 필요한 경우 설정
+        if (setFocusOnInput)
+        {
+            ImGui::SetKeyboardFocusHere();
+            setFocusOnInput = false;
+        }
+        
         bool enter_pressed = ImGui::InputText("##chatinput", m_chatInputBuffer, sizeof(m_chatInputBuffer), 
                                             ImGuiInputTextFlags_EnterReturnsTrue);
         
@@ -299,7 +308,7 @@ void GameClient::renderChatWindow()
         if (enter_pressed || send_button)
         {
             sendChatMessage();
-            ImGui::SetKeyboardFocusHere(-1); // 입력 필드에 다시 포커스
+            setFocusOnInput = true; // 다음 프레임에서 포커스 재설정
         }
     }
     ImGui::End();
