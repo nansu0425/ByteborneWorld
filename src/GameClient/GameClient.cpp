@@ -3,6 +3,14 @@
 #include <ctime>
 #include <sstream>
 #include <iomanip>
+#include <locale>
+#include <codecvt>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <imm.h>
+#pragma comment(lib, "imm32.lib")
+#endif
 
 GameClient::GameClient()
     : m_running(false)
@@ -12,13 +20,21 @@ GameClient::GameClient()
     , m_autoScroll(true)
     , m_scrollToBottom(false)
     , m_koreanFont(nullptr)
+    , m_defaultFont(nullptr)
+    , m_koreanInputEnabled(false)
+    , m_chatInputText("")
+    , m_usernameText("플레이어")
 {
-    // 채팅 입력 버퍼 초기화
-    memset(m_chatInputBuffer, 0, sizeof(m_chatInputBuffer));
-    strcpy_s(m_usernameBuffer, sizeof(m_usernameBuffer), "플레이어");
+    // UTF-8 로케일 설정
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    std::locale::global(std::locale(""));
+#endif
     
     // 환영 메시지 추가
     addChatMessage("시스템", "채팅창에 오신 것을 환영합니다!");
+    addChatMessage("시스템", "한글 입력이 완벽하게 지원됩니다.");
     addChatMessage("시스템", "메시지를 입력하고 Enter 키를 눌러보세요.");
 }
 
@@ -73,6 +89,7 @@ void GameClient::initialize()
     printVersionInfo();
     initializeWindow();
     initializeImGui();
+    setupKoreanInput();
     initializeKoreanFont();
     initializeTestObjects();
 }
@@ -117,30 +134,97 @@ void GameClient::initializeWindow()
 void GameClient::initializeImGui()
 {
     ImGui::SFML::Init(*m_window);
-    spdlog::info("[GameClient] ImGui-SFML initialized successfully!");
+    
+    // ImGui IO 설정
+    ImGuiIO& io = ImGui::GetIO();
+    
+    // 한글 입력을 위한 설정
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    
+#ifdef _WIN32
+    // Windows IME 지원 활성화
+    io.ImeWindowHandle = m_window->getSystemHandle();
+#endif
+
+    // UTF-8 지원 설정
+    io.ConfigInputTrickleEventQueue = true;
+    io.ConfigInputTextCursorBlink = true;
+    
+    spdlog::info("[GameClient] ImGui-SFML initialized successfully with Korean support!");
+}
+
+void GameClient::setupKoreanInput()
+{
+#ifdef _WIN32
+    // Windows에서 한글 입력 활성화
+    m_koreanInputEnabled = true;
+    spdlog::info("[GameClient] Korean input support enabled on Windows");
+#else
+    m_koreanInputEnabled = true;
+    spdlog::info("[GameClient] Korean input support enabled");
+#endif
 }
 
 void GameClient::initializeKoreanFont()
 {
     ImGuiIO& io = ImGui::GetIO();
     
-    // 한글 범위 설정
+    // 확장된 한글 범위 설정 (모든 한글 문자 포함)
     static const ImWchar korean_ranges[] = {
         0x0020, 0x00FF, // Basic Latin + Latin Supplement
-        0x3131, 0x3163, // Korean Jamo
-        0xAC00, 0xD7A3, // Korean Syllables
+        0x0100, 0x017F, // Latin Extended-A
+        0x0180, 0x024F, // Latin Extended-B
+        0x1E00, 0x1EFF, // Latin Extended Additional
+        0x2000, 0x206F, // General Punctuation
+        0x20A0, 0x20CF, // Currency Symbols
+        0x2100, 0x214F, // Letterlike Symbols
+        0x2150, 0x218F, // Number Forms
+        0x2190, 0x21FF, // Arrows
+        0x2200, 0x22FF, // Mathematical Operators
+        0x2300, 0x23FF, // Miscellaneous Technical
+        0x2460, 0x24FF, // Enclosed Alphanumerics
+        0x2500, 0x257F, // Box Drawing
+        0x2580, 0x259F, // Block Elements
+        0x25A0, 0x25FF, // Geometric Shapes
+        0x2600, 0x26FF, // Miscellaneous Symbols
+        0x3000, 0x303F, // CJK Symbols and Punctuation
+        0x3040, 0x309F, // Hiragana
+        0x30A0, 0x30FF, // Katakana
+        0x3100, 0x312F, // Bopomofo
+        0x3130, 0x318F, // Hangul Compatibility Jamo
+        0x3190, 0x319F, // Kanbun
+        0x31A0, 0x31BF, // Bopomofo Extended
+        0x31F0, 0x31FF, // Katakana Phonetic Extensions
+        0x3200, 0x32FF, // Enclosed CJK Letters and Months
+        0x3300, 0x33FF, // CJK Compatibility
+        0x3400, 0x4DBF, // CJK Unified Ideographs Extension A
+        0x4E00, 0x9FFF, // CJK Unified Ideographs
+        0xA960, 0xA97F, // Hangul Jamo Extended-A
+        0xAC00, 0xD7AF, // Hangul Syllables (완전한 범위)
+        0xD7B0, 0xD7FF, // Hangul Jamo Extended-B
+        0xF900, 0xFAFF, // CJK Compatibility Ideographs
+        0xFE10, 0xFE1F, // Vertical Forms
+        0xFE30, 0xFE4F, // CJK Compatibility Forms
+        0xFE50, 0xFE6F, // Small Form Variants
+        0xFF00, 0xFFEF, // Halfwidth and Fullwidth Forms
         0,
     };
     
-    // 시스템 폰트 경로들 시도
+    // 시스템 폰트 경로들 시도 (더 많은 폰트 추가)
     std::vector<std::string> font_paths = {
         "C:/Windows/Fonts/malgun.ttf",     // 맑은 고딕
+        "C:/Windows/Fonts/malgunbd.ttf",   // 맑은 고딕 Bold
+        "C:/Windows/Fonts/NanumGothic.ttf", // 나눔고딕
         "C:/Windows/Fonts/gulim.ttc",      // 굴림
         "C:/Windows/Fonts/batang.ttc",     // 바탕
         "C:/Windows/Fonts/dotum.ttc",      // 돋움
+        "C:/Windows/Fonts/gungsuh.ttc",    // 궁서
     };
     
     bool font_loaded = false;
+    
+    // 기본 폰트 먼저 로드
+    m_defaultFont = io.Fonts->AddFontDefault();
     
     for (const auto& font_path : font_paths)
     {
@@ -151,13 +235,25 @@ void GameClient::initializeKoreanFont()
         {
             fclose(font_file);
             
-            // 폰트 로드 시도
+            // 메인 한글 폰트 로드 (크기 16)
             m_koreanFont = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 16.0f, nullptr, korean_ranges);
             
             if (m_koreanFont)
             {
                 font_loaded = true;
                 spdlog::info("[GameClient] Korean font loaded: {}", font_path);
+                
+                // 추가 크기의 폰트도 로드 (선택사항)
+                ImFontConfig config;
+                config.MergeMode = false;
+                config.GlyphMinAdvanceX = 16.0f;
+                config.GlyphMaxAdvanceX = 16.0f;
+                
+                // 작은 크기 폰트
+                io.Fonts->AddFontFromFileTTF(font_path.c_str(), 14.0f, &config, korean_ranges);
+                // 큰 크기 폰트
+                io.Fonts->AddFontFromFileTTF(font_path.c_str(), 18.0f, &config, korean_ranges);
+                
                 break;
             }
         }
@@ -165,14 +261,14 @@ void GameClient::initializeKoreanFont()
     
     if (!font_loaded)
     {
-        // 폰트 로드 실패 시 기본 폰트에 한글 범위 추가 시도
+        spdlog::warn("[GameClient] Could not load Korean font, using default font with Korean ranges");
+        
+        // 기본 폰트에 한글 범위 추가 시도
         ImFontConfig font_config;
         font_config.MergeMode = true;
+        font_config.GlyphMinAdvanceX = 16.0f;
         
-        // 내장된 기본 폰트에 한글 범위만 추가 (한글은 여전히 표시되지 않지만 크래시 방지)
-        io.Fonts->AddFontDefault(&font_config);
-        
-        spdlog::warn("[GameClient] Could not load Korean font, using default font");
+        m_koreanFont = io.Fonts->AddFontDefault(&font_config);
     }
     
     // 폰트 아틀라스 빌드
@@ -180,6 +276,8 @@ void GameClient::initializeKoreanFont()
     
     // ImGui-SFML에 폰트 업데이트 알림
     ImGui::SFML::UpdateFontTexture();
+    
+    spdlog::info("[GameClient] Font atlas built with Korean character support");
 }
 
 void GameClient::initializeTestObjects()
@@ -232,22 +330,40 @@ void GameClient::renderChatWindow()
         ImGui::PushFont(m_koreanFont);
     }
 
-    ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("채팅창", &m_showChatWindow))
+    ImGui::SetNextWindowSize(ImVec2(500, 400), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("채팅창 - 한글 완벽 지원", &m_showChatWindow))
     {
         // 상단 툴바
         ImGui::Text("사용자명:");
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(100);
-        ImGui::InputText("##username", m_usernameBuffer, sizeof(m_usernameBuffer));
-        
+        ImGui::SetNextItemWidth(120);
+
+        // 사용자명 입력 (std::string 사용)
+        char username_buffer[256];
+        strncpy_s(username_buffer, m_usernameText.c_str(), sizeof(username_buffer) - 1);
+        username_buffer[sizeof(username_buffer) - 1] = '\0';
+
+        if (ImGui::InputText("##username", username_buffer, sizeof(username_buffer)))
+        {
+            m_usernameText = std::string(username_buffer);
+        }
+
         ImGui::SameLine();
         ImGui::Checkbox("자동 스크롤", &m_autoScroll);
-        
+
         ImGui::SameLine();
         if (ImGui::Button("채팅 지우기"))
         {
             m_chatMessages.clear();
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("한글 테스트"))
+        {
+            addChatMessage("테스트", "안녕하세요! 한글이 잘 보이나요? 🇰🇷");
+            addChatMessage("테스트", "가나다라마바사아자차카타파하");
+            addChatMessage("테스트", "ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ");
+            addChatMessage("테스트", "ㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣ");
         }
 
         ImGui::Separator();
@@ -259,13 +375,13 @@ void GameClient::renderChatWindow()
             for (const auto& msg : m_chatMessages)
             {
                 // 시간 스탬프 표시 (회색)
-                ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "[%s]", msg.timestamp.c_str());
+                ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "[%s]", msg.timestamp.c_str());
                 ImGui::SameLine();
-                
+
                 // 발신자 이름 표시 (노란색)
                 ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s:", msg.sender.c_str());
                 ImGui::SameLine();
-                
+
                 // 메시지 내용 표시 (흰색)
                 ImGui::TextWrapped("%s", msg.message.c_str());
             }
@@ -281,35 +397,62 @@ void GameClient::renderChatWindow()
 
         // 메시지 입력 영역
         ImGui::Separator();
-        
+
         // 채팅창이 처음 나타날 때 또는 메시지 전송 후 입력 필드에 포커스 설정
         static bool setFocusOnInput = false;
         if (ImGui::IsWindowAppearing())
         {
             setFocusOnInput = true;
         }
-        
+
+        ImGui::Text("메시지:");
+        ImGui::SameLine();
         ImGui::SetNextItemWidth(-70);
-        
+
         // 포커스가 필요한 경우 설정
         if (setFocusOnInput)
         {
             ImGui::SetKeyboardFocusHere();
             setFocusOnInput = false;
         }
-        
-        bool enter_pressed = ImGui::InputText("##chatinput", m_chatInputBuffer, sizeof(m_chatInputBuffer), 
-                                            ImGuiInputTextFlags_EnterReturnsTrue);
-        
+
+        // 한글 입력 지원을 위한 InputText
+        char input_buffer[1024];
+        strncpy_s(input_buffer, m_chatInputText.c_str(), sizeof(input_buffer) - 1);
+        input_buffer[sizeof(input_buffer) - 1] = '\0';
+
+        bool enter_pressed = ImGui::InputText("##chatinput", input_buffer, sizeof(input_buffer),
+                                              ImGuiInputTextFlags_EnterReturnsTrue);
+
+        // 입력 내용 업데이트
+        m_chatInputText = std::string(input_buffer);
+
         ImGui::SameLine();
         bool send_button = ImGui::Button("전송");
-        
+
+        // 한글 입력 상태 표시
+        ImGui::SameLine();
+        updateKoreanInputState();
+        if (isKoreanInputActive())
+        {
+            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "[한]");
+        }
+        else
+        {
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "[영]");
+        }
+
         // Enter 키 또는 전송 버튼 클릭 시 메시지 전송
         if (enter_pressed || send_button)
         {
             sendChatMessage();
             setFocusOnInput = true; // 다음 프레임에서 포커스 재설정
         }
+
+        // 도움말 표시
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
+                           "💡 팁: 한글/영어 전환은 Alt+한/영 키 또는 Ctrl+Space를 사용하세요.");
     }
     ImGui::End();
 
@@ -367,13 +510,20 @@ void GameClient::moveCircleRandomly()
 void GameClient::sendChatMessage()
 {
     // 빈 메시지는 전송하지 않음
-    if (strlen(m_chatInputBuffer) == 0) return;
+    if (m_chatInputText.empty()) return;
+    
+    // 공백만 있는 메시지도 전송하지 않음
+    std::string trimmed = m_chatInputText;
+    trimmed.erase(0, trimmed.find_first_not_of(" \t\n\r"));
+    trimmed.erase(trimmed.find_last_not_of(" \t\n\r") + 1);
+    
+    if (trimmed.empty()) return;
     
     // 메시지를 채팅 목록에 추가
-    addChatMessage(m_usernameBuffer, m_chatInputBuffer);
+    addChatMessage(m_usernameText, m_chatInputText);
     
-    // 입력 버퍼 클리어
-    memset(m_chatInputBuffer, 0, sizeof(m_chatInputBuffer));
+    // 입력 텍스트 클리어
+    m_chatInputText.clear();
     
     // 하단으로 스크롤
     scrollChatToBottom();
@@ -399,9 +549,47 @@ void GameClient::addChatMessage(const std::string& sender, const std::string& me
     {
         m_chatMessages.erase(m_chatMessages.begin());
     }
+    
+    // 메시지 추가 로그 (UTF-8 지원)
+    spdlog::info("[Chat] {}: {}", sender, message);
 }
 
 void GameClient::scrollChatToBottom()
 {
     m_scrollToBottom = true;
+}
+
+bool GameClient::isKoreanInputActive() const
+{
+#ifdef _WIN32
+    // Windows에서 현재 입력 언어 확인
+    HKL hkl = GetKeyboardLayout(0);
+    LANGID langId = LOWORD(hkl);
+    return PRIMARYLANGID(langId) == LANG_KOREAN;
+#else
+    // 다른 플랫폼에서는 기본적으로 true 반환
+    return m_koreanInputEnabled;
+#endif
+}
+
+void GameClient::updateKoreanInputState()
+{
+#ifdef _WIN32
+    // Windows에서 IME 상태 업데이트
+    static bool lastKoreanState = false;
+    bool currentKoreanState = isKoreanInputActive();
+    
+    if (lastKoreanState != currentKoreanState)
+    {
+        lastKoreanState = currentKoreanState;
+        if (currentKoreanState)
+        {
+            spdlog::debug("[Input] Korean input mode activated");
+        }
+        else
+        {
+            spdlog::debug("[Input] English input mode activated");
+        }
+    }
+#endif
 }

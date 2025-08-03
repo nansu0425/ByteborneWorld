@@ -39,6 +39,7 @@ private:
     void initializeImGui();
     void initializeTestObjects();
     void initializeKoreanFont();
+    void setupKoreanInput();
 
     void processEvents();
     void updateImGui();
@@ -55,6 +56,10 @@ private:
     void sendChatMessage();
     void addChatMessage(const std::string& sender, const std::string& message);
     void scrollChatToBottom();
+    
+    // 한글 입력 지원 함수들
+    bool isKoreanInputActive() const;
+    void updateKoreanInputState();
 
 private:
     // 실행 상태
@@ -72,6 +77,11 @@ private:
     
     // 폰트 관련
     ImFont* m_koreanFont;
+    ImFont* m_defaultFont;
+    
+    // 한글 입력 관련
+    bool m_koreanInputEnabled;
+    std::string m_lastInputText;
     
     // 채팅 관련 변수들
     struct ChatMessage {
@@ -81,8 +91,8 @@ private:
     };
     
     std::vector<ChatMessage> m_chatMessages;
-    char m_chatInputBuffer[256];
-    char m_usernameBuffer[64];
+    std::string m_chatInputText;  // string으로 변경하여 UTF-8 지원
+    std::string m_usernameText;   // string으로 변경하여 UTF-8 지원
     bool m_autoScroll;
     bool m_scrollToBottom;
 };
