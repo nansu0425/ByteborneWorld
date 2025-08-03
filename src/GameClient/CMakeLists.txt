@@ -2,6 +2,9 @@
 add_executable (GameClient
     "Main.cpp"
     "GameClient.h" "GameClient.cpp"
+    "FontManager.h" "FontManager.cpp"
+    "KoreanInputManager.h" "KoreanInputManager.cpp"
+    "ChatWindow.h" "ChatWindow.cpp"
 )
 
 # Find packages in correct order

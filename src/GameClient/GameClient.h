@@ -1,17 +1,16 @@
 ﻿#pragma once
 
-#include "Core/Context.h"
+#include "FontManager.h"
+#include "KoreanInputManager.h"
+#include "ChatWindow.h"
 
 #include "imgui.h"
 #include "imgui-SFML.h"
-
 #include <SFML/Graphics.hpp>
 
 #include <atomic>
 #include <thread>
-#include <chrono>
-#include <vector>
-#include <string>
+#include <memory>
 
 class GameClient
 {
@@ -38,28 +37,15 @@ private:
     void initializeWindow();
     void initializeImGui();
     void initializeTestObjects();
-    void initializeKoreanFont();
-    void setupKoreanInput();
 
     void processEvents();
     void updateImGui();
     void renderImGuiWindows();
     void renderSFML();
 
-    void renderChatWindow();
     void renderMainMenuBar();
-
     void handleWindowClose();
     void moveCircleRandomly();
-    
-    // 채팅 관련 함수들
-    void sendChatMessage();
-    void addChatMessage(const std::string& sender, const std::string& message);
-    void scrollChatToBottom();
-    
-    // 한글 입력 지원 함수들
-    bool isKoreanInputActive() const;
-    void updateKoreanInputState();
 
 private:
     // 실행 상태
@@ -72,28 +58,8 @@ private:
     sf::CircleShape m_shape;
     sf::Color m_clearColor;
 
-    // ImGui 상태 변수들
-    bool m_showChatWindow;
-    
-    // 폰트 관련
-    ImFont* m_koreanFont;
-    ImFont* m_defaultFont;
-    
-    // 한글 입력 관련
-    bool m_koreanInputEnabled;
-    std::string m_lastInputText;
-    mutable bool m_lastIMEState;  // 마지막 IME 상태 캐시
-    
-    // 채팅 관련 변수들
-    struct ChatMessage {
-        std::string sender;
-        std::string message;
-        std::string timestamp;
-    };
-    
-    std::vector<ChatMessage> m_chatMessages;
-    std::string m_chatInputText;  // string으로 변경하여 UTF-8 지원
-    std::string m_usernameText;   // string으로 변경하여 UTF-8 지원
-    bool m_autoScroll;
-    bool m_scrollToBottom;
+    // 매니저들
+    std::unique_ptr<FontManager> m_fontManager;
+    std::unique_ptr<KoreanInputManager> m_inputManager;
+    std::unique_ptr<ChatWindow> m_chatWindow;
 };
