@@ -1,7 +1,5 @@
 ﻿#include "FontManager.h"
-#include "Core/Context.h"
 #include "imgui-SFML.h"
-#include <spdlog/spdlog.h>
 
 FontManager::FontManager()
     : m_koreanFont(nullptr)

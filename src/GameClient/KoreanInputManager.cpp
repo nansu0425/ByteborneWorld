@@ -1,5 +1,4 @@
 ﻿#include "KoreanInputManager.h"
-#include <spdlog/spdlog.h>
 
 #ifdef _WIN32
 #pragma comment(lib, "imm32.lib")

@@ -17,5 +17,7 @@
 #include <memory>
 #include <unordered_set>
 #include <ctime>
+#include <sstream>
+#include <iomanip>
 
 #include <spdlog/spdlog.h>

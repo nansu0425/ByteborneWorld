@@ -1,9 +1,5 @@
 ﻿#include "ChatWindow.h"
 #include "imgui.h"
-#include <spdlog/spdlog.h>
-#include <ctime>
-#include <sstream>
-#include <iomanip>
 
 ChatWindow::ChatWindow(FontManager& fontManager, KoreanInputManager& inputManager)
     : m_fontManager(fontManager)

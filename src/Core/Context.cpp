@@ -7,6 +7,13 @@ namespace core
 {
     void AppContext::initialize()
     {
+        // UTF-8 로케일 설정
+#ifdef _WIN32
+        SetConsoleOutputCP(CP_UTF8);
+        SetConsoleCP(CP_UTF8);
+#endif
+        std::locale::global(std::locale(""));
+
         initAsyncLogger();
     }
 
@@ -17,10 +24,6 @@ namespace core
 
     void AppContext::initAsyncLogger()
     {
-#ifdef _WIN32
-        ::SetConsoleOutputCP(CP_UTF8); // 콘솔 출력 인코딩을 UTF-8로 설정
-#endif // _WIN32
-
         // 1. 스레드 풀 초기화
         constexpr size_t queueSize = 8192;
         constexpr size_t threadCount = 1;

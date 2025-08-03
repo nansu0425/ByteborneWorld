@@ -1,7 +1,4 @@
 ﻿#include "GameClient.h"
-#include <cstdlib>
-#include <ctime>
-#include <locale>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -11,14 +8,7 @@ GameClient::GameClient()
     : m_running(false)
     , m_shape(50.f)
     , m_clearColor(sf::Color::Black)
-{
-    // UTF-8 로케일 설정
-#ifdef _WIN32
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
-    std::locale::global(std::locale(""));
-#endif
-    
+{    
     // 매니저들 초기화
     m_fontManager = std::make_unique<FontManager>();
     m_inputManager = std::make_unique<KoreanInputManager>();
