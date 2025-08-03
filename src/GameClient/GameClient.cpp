@@ -24,6 +24,7 @@ GameClient::GameClient()
     , m_koreanInputEnabled(false)
     , m_chatInputText("")
     , m_usernameText("플레이어")
+    , m_lastIMEState(false)
 {
     // UTF-8 로케일 설정
 #ifdef _WIN32
@@ -297,7 +298,16 @@ void GameClient::processEvents()
         {
             handleWindowClose();
         }
+        
+        // 키보드 이벤트가 발생했을 때 한영 상태 업데이트
+        if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased)
+        {
+            updateKoreanInputState();
+        }
     }
+    
+    // 매 프레임마다 한영 상태 업데이트 (Alt+한/영 키 감지용)
+    updateKoreanInputState();
 }
 
 void GameClient::updateImGui()
@@ -432,14 +442,22 @@ void GameClient::renderChatWindow()
 
         // 한글 입력 상태 표시
         ImGui::SameLine();
-        updateKoreanInputState();
-        if (isKoreanInputActive())
+        bool koreanActive = isKoreanInputActive();
+        if (koreanActive)
         {
             ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "[한]");
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("한글 입력 모드 (Alt+한/영으로 전환)");
+            }
         }
         else
         {
-            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "[영]");
+            ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "[영]");
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("영어 입력 모드 (Alt+한/영으로 전환)");
+            }
         }
 
         // Enter 키 또는 전송 버튼 클릭 시 메시지 전송
@@ -562,12 +580,57 @@ void GameClient::scrollChatToBottom()
 bool GameClient::isKoreanInputActive() const
 {
 #ifdef _WIN32
-    // Windows에서 현재 입력 언어 확인
-    HKL hkl = GetKeyboardLayout(0);
+    // Windows에서 현재 입력 언어와 IME 상태 확인
+    HWND hwnd = static_cast<HWND>(m_window->getSystemHandle());
+    
+    // 현재 활성화된 윈도우의 키보드 레이아웃 확인
+    DWORD threadId = GetWindowThreadProcessId(hwnd, nullptr);
+    HKL hkl = GetKeyboardLayout(threadId);
     LANGID langId = LOWORD(hkl);
-    return PRIMARYLANGID(langId) == LANG_KOREAN;
+    
+    // 한국어 키보드 레이아웃인지 확인
+    bool isKoreanLayout = (PRIMARYLANGID(langId) == LANG_KOREAN);
+    
+    if (!isKoreanLayout)
+    {
+        m_lastIMEState = false;
+        return false;  // 한국어 키보드 레이아웃이 아니면 영어 입력
+    }
+    
+    // 한국어 키보드 레이아웃일 때 IME 상태 확인
+    HIMC hIMC = ImmGetContext(hwnd);
+    
+    if (hIMC)
+    {
+        // IME가 열려있는지 확인
+        BOOL isOpen = ImmGetOpenStatus(hIMC);
+        
+        // 추가로 IME 변환 모드도 확인
+        DWORD convMode = 0;
+        DWORD sentMode = 0;
+        if (ImmGetConversionStatus(hIMC, &convMode, &sentMode))
+        {
+            // 한글 모드인지 확인 (IME_CMODE_NATIVE 플래그)
+            bool isNativeMode = (convMode & IME_CMODE_NATIVE) != 0;
+            ImmReleaseContext(hwnd, hIMC);
+            
+            bool result = isOpen && isNativeMode;
+            m_lastIMEState = result;
+            return result;
+        }
+        
+        ImmReleaseContext(hwnd, hIMC);
+        
+        // 변환 상태를 가져올 수 없으면 열린 상태만으로 판단
+        bool result = isOpen != FALSE;
+        m_lastIMEState = result;
+        return result;
+    }
+    
+    // IME 컨텍스트를 얻을 수 없으면 마지막 상태 유지
+    return m_lastIMEState;
 #else
-    // 다른 플랫폼에서는 기본적으로 true 반환
+    // 다른 플랫폼에서는 기본적으로 활성화된 것으로 반환
     return m_koreanInputEnabled;
 #endif
 }
@@ -577,18 +640,39 @@ void GameClient::updateKoreanInputState()
 #ifdef _WIN32
     // Windows에서 IME 상태 업데이트
     static bool lastKoreanState = false;
+    static bool isInitialized = false;
+    
     bool currentKoreanState = isKoreanInputActive();
     
-    if (lastKoreanState != currentKoreanState)
+    // 첫 번째 호출이거나 상태가 변경된 경우
+    if (!isInitialized || lastKoreanState != currentKoreanState)
     {
         lastKoreanState = currentKoreanState;
+        isInitialized = true;
+        
+        // 추가 디버그 정보 로깅
+        HWND hwnd = static_cast<HWND>(m_window->getSystemHandle());
+        DWORD threadId = GetWindowThreadProcessId(hwnd, nullptr);
+        HKL hkl = GetKeyboardLayout(threadId);
+        LANGID langId = LOWORD(hkl);
+        
+        HIMC hIMC = ImmGetContext(hwnd);
+        BOOL imeOpen = FALSE;
+        if (hIMC)
+        {
+            imeOpen = ImmGetOpenStatus(hIMC);
+            ImmReleaseContext(hwnd, hIMC);
+        }
+        
         if (currentKoreanState)
         {
-            spdlog::debug("[Input] Korean input mode activated");
+            spdlog::debug("[Input] Korean input mode activated (한글 입력) - Layout: 0x{:04X}, IME Open: {}", 
+                         langId, imeOpen ? "TRUE" : "FALSE");
         }
         else
         {
-            spdlog::debug("[Input] English input mode activated");
+            spdlog::debug("[Input] English input mode activated (영어 입력) - Layout: 0x{:04X}, IME Open: {}", 
+                         langId, imeOpen ? "TRUE" : "FALSE");
         }
     }
 #endif

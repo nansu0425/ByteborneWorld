@@ -82,6 +82,7 @@ private:
     // 한글 입력 관련
     bool m_koreanInputEnabled;
     std::string m_lastInputText;
+    mutable bool m_lastIMEState;  // 마지막 IME 상태 캐시
     
     // 채팅 관련 변수들
     struct ChatMessage {
