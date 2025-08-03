@@ -8,19 +8,15 @@ GameClient::GameClient()
     : m_running(false)
     , m_shape(50.f)
     , m_clearColor(sf::Color::Black)
-    , m_showDemoWindow(true)
-    , m_showTestWindow(true)
     , m_showChatWindow(true)
-    , m_testFloat(0.0f)
-    , m_testCounter(0)
-    , m_colorEdit{0.0f, 0.0f, 0.0f, 1.0f}
-    , m_textBuffer{"Hello, World!"}
-    , m_chatInputBuffer{""}
-    , m_usernameBuffer{"플레이어"}
     , m_autoScroll(true)
     , m_scrollToBottom(false)
     , m_koreanFont(nullptr)
 {
+    // 채팅 입력 버퍼 초기화
+    memset(m_chatInputBuffer, 0, sizeof(m_chatInputBuffer));
+    strcpy_s(m_usernameBuffer, sizeof(m_usernameBuffer), "플레이어");
+    
     // 환영 메시지 추가
     addChatMessage("시스템", "채팅창에 오신 것을 환영합니다!");
     addChatMessage("시스템", "메시지를 입력하고 Enter 키를 눌러보세요.");
@@ -213,8 +209,6 @@ void GameClient::updateImGui()
 
 void GameClient::renderImGuiWindows()
 {
-    renderDemoWindow();
-    renderTestWindow();
     renderChatWindow();
     renderMainMenuBar();
 }
@@ -226,71 +220,6 @@ void GameClient::renderSFML()
 
     ImGui::SFML::Render(*m_window);
     m_window->display();
-}
-
-void GameClient::renderDemoWindow()
-{
-    if (m_showDemoWindow)
-    {
-        ImGui::ShowDemoWindow(&m_showDemoWindow);
-    }
-}
-
-void GameClient::renderTestWindow()
-{
-    if (m_showTestWindow)
-    {
-        ImGui::Begin("ImGui-SFML Test Window", &m_showTestWindow);
-
-        // 기본 텍스트
-        ImGui::Text("ImGui-SFML is working!");
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-                    1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-
-        ImGui::Separator();
-
-        // 버튼 테스트
-        if (ImGui::Button("Test Button"))
-        {
-            m_testCounter++;
-            spdlog::debug("[GameClient] Button clicked! Count: {}", m_testCounter);
-        }
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", m_testCounter);
-
-        // 슬라이더 테스트
-        ImGui::SliderFloat("Test Float", &m_testFloat, 0.0f, 1.0f);
-
-        // 컬러 에디터 테스트
-        if (ImGui::ColorEdit3("Clear Color", m_colorEdit))
-        {
-            m_clearColor = sf::Color(
-                static_cast<sf::Uint8>(m_colorEdit[0] * 255),
-                static_cast<sf::Uint8>(m_colorEdit[1] * 255),
-                static_cast<sf::Uint8>(m_colorEdit[2] * 255)
-            );
-        }
-
-        // 체크박스 테스트
-        ImGui::Checkbox("Show Demo Window", &m_showDemoWindow);
-
-        ImGui::Separator();
-
-        // SFML 상호작용 테스트
-        ImGui::Text("SFML Integration Test:");
-        if (ImGui::Button("Move Circle"))
-        {
-            moveCircleRandomly();
-        }
-
-        sf::Vector2f pos = m_shape.getPosition();
-        ImGui::Text("Circle Position: (%.1f, %.1f)", pos.x, pos.y);
-
-        // 입력 테스트
-        ImGui::InputText("Text Input", m_textBuffer, sizeof(m_textBuffer));
-
-        ImGui::End();
-    }
 }
 
 void GameClient::renderChatWindow()
@@ -396,8 +325,6 @@ void GameClient::renderMainMenuBar()
         }
         if (ImGui::BeginMenu("Windows"))
         {
-            ImGui::MenuItem("Demo Window", nullptr, &m_showDemoWindow);
-            ImGui::MenuItem("Test Window", nullptr, &m_showTestWindow);
             ImGui::MenuItem("Chat Window", nullptr, &m_showChatWindow);
             ImGui::EndMenu();
         }

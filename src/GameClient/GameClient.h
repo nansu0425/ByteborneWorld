@@ -45,8 +45,6 @@ private:
     void renderImGuiWindows();
     void renderSFML();
 
-    void renderDemoWindow();
-    void renderTestWindow();
     void renderChatWindow();
     void renderMainMenuBar();
 
@@ -70,13 +68,7 @@ private:
     sf::Color m_clearColor;
 
     // ImGui 상태 변수들
-    bool m_showDemoWindow;
-    bool m_showTestWindow;
     bool m_showChatWindow;
-    float m_testFloat;
-    int m_testCounter;
-    float m_colorEdit[4];
-    char m_textBuffer[256];
     
     // 폰트 관련
     ImFont* m_koreanFont;
