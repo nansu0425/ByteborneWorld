@@ -42,13 +42,13 @@ void ChatWindow::renderToolbar()
     ImGui::SetNextItemWidth(120);
 
     // 사용자명 입력
-    char username_buffer[256];
-    strncpy_s(username_buffer, m_usernameText.c_str(), sizeof(username_buffer) - 1);
-    username_buffer[sizeof(username_buffer) - 1] = '\0';
+    char usernameBuffer[256];
+    strncpy_s(usernameBuffer, m_usernameText.c_str(), sizeof(usernameBuffer) - 1);
+    usernameBuffer[sizeof(usernameBuffer) - 1] = '\0';
 
-    if (ImGui::InputText("##username", username_buffer, sizeof(username_buffer)))
+    if (ImGui::InputText("##username", usernameBuffer, sizeof(usernameBuffer)))
     {
-        m_usernameText = std::string(username_buffer);
+        m_usernameText = std::string(usernameBuffer);
     }
 
     ImGui::SameLine();
@@ -69,8 +69,8 @@ void ChatWindow::renderToolbar()
 
 void ChatWindow::renderMessageArea()
 {
-    const float footer_height_to_reserve = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
-    if (ImGui::BeginChild("ChatMessages", ImVec2(0, -footer_height_to_reserve), false, ImGuiWindowFlags_HorizontalScrollbar))
+    const float footerHeightToReserve = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
+    if (ImGui::BeginChild("ChatMessages", ImVec2(0, -footerHeightToReserve), false, ImGuiWindowFlags_HorizontalScrollbar))
     {
         for (const auto& msg : m_chatMessages)
         {
@@ -117,24 +117,24 @@ void ChatWindow::renderInputArea()
     }
 
     // 한글 입력 지원을 위한 InputText
-    char input_buffer[1024];
-    strncpy_s(input_buffer, m_chatInputText.c_str(), sizeof(input_buffer) - 1);
-    input_buffer[sizeof(input_buffer) - 1] = '\0';
+    char inputBuffer[1024];
+    strncpy_s(inputBuffer, m_chatInputText.c_str(), sizeof(inputBuffer) - 1);
+    inputBuffer[sizeof(inputBuffer) - 1] = '\0';
 
-    bool enter_pressed = ImGui::InputText("##chatinput", input_buffer, sizeof(input_buffer),
+    bool enterPressed = ImGui::InputText("##chatinput", inputBuffer, sizeof(inputBuffer),
                                           ImGuiInputTextFlags_EnterReturnsTrue);
 
     // 입력 내용 업데이트
-    m_chatInputText = std::string(input_buffer);
+    m_chatInputText = std::string(inputBuffer);
 
     ImGui::SameLine();
-    bool send_button = ImGui::Button("전송");
+    bool sendButton = ImGui::Button("전송");
 
     // 한글 입력 상태 표시
     renderInputStatusIndicator();
 
     // Enter 키 또는 전송 버튼 클릭 시 메시지 전송
-    if (enter_pressed || send_button)
+    if (enterPressed || sendButton)
     {
         sendChatMessage();
         setFocusOnInput = true; // 다음 프레임에서 포커스 재설정

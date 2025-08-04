@@ -15,25 +15,25 @@ bool FontManager::initializeKoreanFont()
     // 기본 폰트 먼저 로드
     m_defaultFont = io.Fonts->AddFontDefault();
     
-    const ImWchar* korean_ranges = getKoreanRanges();
-    auto font_paths = getSystemFontPaths();
+    const ImWchar* koreanRanges = getKoreanRanges();
+    auto fontPaths = getSystemFontPaths();
     
-    for (const auto& font_path : font_paths)
+    for (const auto& fontPath : fontPaths)
     {
-        FILE* font_file = nullptr;
-        fopen_s(&font_file, font_path.c_str(), "rb");
+        FILE* fontFile = nullptr;
+        fopen_s(&fontFile, fontPath.c_str(), "rb");
         
-        if (font_file)
+        if (fontFile)
         {
-            fclose(font_file);
+            fclose(fontFile);
             
             // 메인 한글 폰트 로드 (크기 16)
-            m_koreanFont = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 16.0f, nullptr, korean_ranges);
+            m_koreanFont = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), 16.0f, nullptr, koreanRanges);
             
             if (m_koreanFont)
             {
                 m_fontLoaded = true;
-                spdlog::info("[FontManager] Korean font loaded: {}", font_path);
+                spdlog::info("[FontManager] Korean font loaded: {}", fontPath);
                 
                 // 추가 크기의 폰트도 로드 (선택사항)
                 ImFontConfig config;
@@ -42,9 +42,9 @@ bool FontManager::initializeKoreanFont()
                 config.GlyphMaxAdvanceX = 16.0f;
                 
                 // 작은 크기 폰트
-                io.Fonts->AddFontFromFileTTF(font_path.c_str(), 14.0f, &config, korean_ranges);
+                io.Fonts->AddFontFromFileTTF(fontPath.c_str(), 14.0f, &config, koreanRanges);
                 // 큰 크기 폰트
-                io.Fonts->AddFontFromFileTTF(font_path.c_str(), 18.0f, &config, korean_ranges);
+                io.Fonts->AddFontFromFileTTF(fontPath.c_str(), 18.0f, &config, koreanRanges);
                 
                 break;
             }
@@ -56,11 +56,11 @@ bool FontManager::initializeKoreanFont()
         spdlog::warn("[FontManager] Could not load Korean font, using default font with Korean ranges");
         
         // 기본 폰트에 한글 범위 추가 시도
-        ImFontConfig font_config;
-        font_config.MergeMode = true;
-        font_config.GlyphMinAdvanceX = 16.0f;
+        ImFontConfig fontConfig;
+        fontConfig.MergeMode = true;
+        fontConfig.GlyphMinAdvanceX = 16.0f;
         
-        m_koreanFont = io.Fonts->AddFontDefault(&font_config);
+        m_koreanFont = io.Fonts->AddFontDefault(&fontConfig);
     }
     
     // 폰트 아틀라스 빌드
@@ -92,7 +92,7 @@ void FontManager::popKoreanFont() const
 const ImWchar* FontManager::getKoreanRanges()
 {
     // 확장된 한글 범위 설정 (모든 한글 문자 포함)
-    static const ImWchar korean_ranges[] = {
+    static const ImWchar koreanRanges[] = {
         0x0020, 0x00FF, // Basic Latin + Latin Supplement
         0x0100, 0x017F, // Latin Extended-A
         0x0180, 0x024F, // Latin Extended-B
@@ -131,7 +131,7 @@ const ImWchar* FontManager::getKoreanRanges()
         0xFF00, 0xFFEF, // Halfwidth and Fullwidth Forms
         0,
     };
-    return korean_ranges;
+    return koreanRanges;
 }
 
 std::vector<std::string> FontManager::getSystemFontPaths() const
