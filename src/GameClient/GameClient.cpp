@@ -1,4 +1,5 @@
 ﻿#include "GameClient.h"
+#include <spdlog/spdlog.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -8,11 +9,15 @@ GameClient::GameClient()
     : m_running(false)
     , m_shape(50.f)
     , m_clearColor(sf::Color::Black)
+    , m_messageSerializer(m_sendBufferManager)
 {    
     // 매니저들 초기화
     m_fontManager = std::make_unique<FontManager>();
     m_inputManager = std::make_unique<KoreanInputManager>();
     m_chatWindow = std::make_unique<ChatWindow>(*m_fontManager, *m_inputManager);
+    
+    // 네트워크 초기화
+    initializeNetwork();
 }
 
 GameClient::~GameClient()
@@ -31,12 +36,21 @@ void GameClient::start()
         return;
     }
 
+    spdlog::info("[GameClient] 게임 클라이언트 시작");
+
     m_mainThread = std::thread([this]()
                                {
                                    initialize();
                                    run();
-                                   cleanup();
+                                   close();    // 네트워크 정리 작업 (UI가 있을 때)
+                                   cleanup();  // UI 정리 작업 (마지막에)
                                });
+    
+    // 네트워크 I/O 스레드 풀 시작
+    m_ioThreadPool.run();
+    
+    // 서버 연결 시작
+    m_clientService->start();
 }
 
 void GameClient::stop()
@@ -47,10 +61,15 @@ void GameClient::stop()
         return;
     }
 
+    spdlog::info("[GameClient] 게임 클라이언트 중지");
+
     if (m_window && m_window->isOpen())
     {
         m_window->close();
     }
+    
+    // 서비스 중지 (새로운 연결 시도 중단)
+    m_clientService->stop();
 }
 
 void GameClient::join()
@@ -58,6 +77,34 @@ void GameClient::join()
     if (m_mainThread.joinable())
     {
         m_mainThread.join();
+    }
+    
+    // 네트워크 I/O 스레드 풀 종료 대기
+    m_ioThreadPool.join();
+    
+    spdlog::info("[GameClient] 게임 클라이언트 종료");
+}
+
+void GameClient::sendChatMessage(const std::string& message)
+{
+    if (!m_connected.load() || m_serverSessionId == 0)
+    {
+        spdlog::warn("[GameClient] 서버에 연결되지 않음. 메시지를 보낼 수 없습니다.");
+        return;
+    }
+    
+    // 채팅 메시지 생성 및 전송
+    proto::C2S_Chat chat;
+    chat.set_content(message);
+    
+    net::SendBufferChunkPtr chunk = m_messageSerializer.serializeToSendBuffer(chat);
+    if (m_sessionManager.send(m_serverSessionId, chunk))
+    {
+        spdlog::debug("[GameClient] 채팅 메시지 전송: {}", message);
+    }
+    else
+    {
+        spdlog::error("[GameClient] 채팅 메시지 전송 실패: {}", message);
     }
 }
 
@@ -71,17 +118,41 @@ void GameClient::initialize()
     m_inputManager->initialize(m_window->getSystemHandle());
     m_fontManager->initializeKoreanFont();
     
+    // 채팅 윈도우의 메시지 전송 콜백 설정
+    m_chatWindow->setSendMessageCallback([this](const std::string& message) {
+        sendChatMessage(message);
+    });
+    
     initializeTestObjects();
 }
 
 void GameClient::run()
 {
+    constexpr auto TickInterval = std::chrono::milliseconds(16); // 60 FPS
+    
     while (m_window->isOpen() && m_running.load())
     {
+        auto start = std::chrono::steady_clock::now();
+        
+        // 네트워크 이벤트 처리
+        processServiceEvents();
+        processSessionEvents();
+        processMessages();
+        m_timer.update();
+        
+        // 게임 루프
         processEvents();
         updateImGui();
         renderImGuiWindows();
         renderSFML();
+        
+        // 다음 프레임까지 대기
+        auto end = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        if (elapsed < TickInterval)
+        {
+            std::this_thread::sleep_for(TickInterval - elapsed);
+        }
     }
 }
 
@@ -93,7 +164,62 @@ void GameClient::cleanup()
         m_window.reset();
     }
 
-    spdlog::info("[GameClient] ImGui-SFML test completed successfully!");
+    spdlog::info("[GameClient] GameClient cleanup completed successfully!");
+}
+
+void GameClient::close()
+{
+    // 실행 중이 아닌 상태에서 close가 호출돼야 한다
+    assert(m_running.load() == false);
+
+    spdlog::info("[GameClient] 네트워크 정리 작업 시작");
+    
+    // 연결 상태 업데이트
+    m_connected.store(false);
+    m_serverSessionId = 0;
+    
+    // 채팅 윈도우에 종료 상태 알림 (UI 정리 전이므로 안전하게 접근 가능)
+    if (m_chatWindow)
+    {
+        m_chatWindow->setConnectionStatus(false);
+        m_chatWindow->addChatMessage("시스템", "네트워크 연결을 정리 중입니다...");
+    }
+
+    // 모든 세션 중지
+    m_sessionManager.stopAllSessions();
+
+    // 모든 세션이 제거될 때까지 대기
+    while (!m_sessionManager.isEmpty())
+    {
+        processSessionEvents();
+        std::this_thread::yield();
+    }
+
+    // I/O 스레드가 처리할 핸들러가 없으면 스레드가 종료되도록 설정
+    m_ioThreadPool.reset();
+    
+    // 네트워크 정리 완료 메시지 (UI 정리 전 마지막 메시지)
+    if (m_chatWindow)
+    {
+        m_chatWindow->addChatMessage("시스템", "네트워크 정리 완료. UI를 종료합니다.");
+    }
+    
+    spdlog::info("[GameClient] 네트워크 정리 작업 완료");
+}
+
+void GameClient::initializeNetwork()
+{
+    // ClientService 생성 (localhost:12345에 연결)
+    m_clientService = net::ClientService::createInstance(
+        m_ioThreadPool.getContext(), 
+        m_serviceEventQueue, 
+        net::ResolveTarget{"localhost", "12345"}, 
+        1);  // 연결 개수는 1개
+    
+    // 메시지 핸들러 등록
+    registerMessageHandlers();
+    
+    spdlog::info("[GameClient] 네트워크 초기화 완료");
 }
 
 void GameClient::printVersionInfo()
@@ -228,4 +354,161 @@ void GameClient::moveCircleRandomly()
         static_cast<float>(rand() % 700),
         static_cast<float>(rand() % 500)
     );
+}
+
+void GameClient::processServiceEvents()
+{
+    net::ServiceEventPtr event;
+    while (m_serviceEventQueue.pop(event))
+    {
+        switch (event->type)
+        {
+        case net::ServiceEventType::Close:
+            handleServiceEvent(*static_cast<net::ServiceCloseEvent*>(event.get()));
+            break;
+        case net::ServiceEventType::Connect:
+            handleServiceEvent(*static_cast<net::ServiceConnectEvent*>(event.get()));
+            break;
+        default:
+            spdlog::error("[GameClient] 알 수 없는 서비스 이벤트 타입: {}", static_cast<int>(event->type));
+            break;
+        }
+    }
+}
+
+void GameClient::handleServiceEvent(net::ServiceCloseEvent& event)
+{
+    spdlog::info("[GameClient] 서버 연결이 종료되었습니다.");
+    m_connected.store(false);
+    m_serverSessionId = 0;
+    
+    // 채팅 윈도우에 연결 상태 업데이트
+    if (m_chatWindow)
+    {
+        m_chatWindow->setConnectionStatus(false);
+        m_chatWindow->addChatMessage("시스템", "서버 연결이 종료되었습니다.");
+    }
+}
+
+void GameClient::handleServiceEvent(net::ServiceConnectEvent& event)
+{
+    if (!m_running.load())
+    {
+        spdlog::debug("[GameClient] 클라이언트가 실행 중이 아닙니다. 서버 연결 이벤트를 건너뜁니다.");
+        return;
+    }
+
+    auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
+    m_sessionManager.addSession(session);
+    session->start();
+    
+    m_serverSessionId = session->getSessionId();
+    m_connected.store(true);
+    
+    spdlog::info("[GameClient] 서버에 연결되었습니다. Session ID: {}", m_serverSessionId);
+    
+    // 채팅 윈도우에 연결 상태 업데이트
+    if (m_chatWindow)
+    {
+        m_chatWindow->setConnectionStatus(true);
+        m_chatWindow->addChatMessage("시스템", "서버에 성공적으로 연결되었습니다!");
+    }
+}
+
+void GameClient::processSessionEvents()
+{
+    net::SessionEventPtr event;
+    while (m_sessionEventQueue.pop(event))
+    {
+        switch (event->type)
+        {
+        case net::SessionEventType::Close:
+            handleSessionEvent(*static_cast<net::SessionCloseEvent*>(event.get()));
+            break;
+        case net::SessionEventType::Receive:
+            handleSessionEvent(*static_cast<net::SessionReceiveEvent*>(event.get()));
+            break;
+        default:
+            spdlog::error("[GameClient] 알 수 없는 세션 이벤트 타입: {}", static_cast<int>(event->type));
+            break;
+        }
+    }
+}
+
+void GameClient::handleSessionEvent(net::SessionCloseEvent& event)
+{
+    spdlog::info("[GameClient] 세션 {} 연결이 종료되었습니다.", event.sessionId);
+    m_sessionManager.removeSession(event.sessionId);
+    
+    if (event.sessionId == m_serverSessionId)
+    {
+        m_connected.store(false);
+        m_serverSessionId = 0;
+        
+        // 채팅 윈도우에 연결 상태 업데이트
+        if (m_chatWindow)
+        {
+            m_chatWindow->setConnectionStatus(false);
+            m_chatWindow->addChatMessage("시스템", "서버와의 연결이 끊어졌습니다.");
+        }
+    }
+}
+
+void GameClient::handleSessionEvent(net::SessionReceiveEvent& event)
+{
+    if (!m_running.load())
+    {
+        spdlog::debug("[GameClient] 클라이언트가 실행 중이 아닙니다. 수신 이벤트를 건너뜁니다.");
+        return;
+    }
+
+    auto session = m_sessionManager.findSession(event.sessionId);
+    if (!session)
+    {
+        spdlog::error("[GameClient] 세션 {}을 찾을 수 없습니다.", event.sessionId);
+        return;
+    }
+
+    net::PacketView packetView;
+    while (session->getFrontPacket(packetView))
+    {
+        // 패킷의 페이로드를 메시지로 파싱하여 큐에 추가
+        m_messageQueue.push(event.sessionId, packetView);
+
+        // 수신 버퍼에서 패킷 제거
+        session->popFrontPacket();
+    }
+
+    // 세션에서 다시 비동기 수신 시작
+    session->receive();
+}
+
+void GameClient::processMessages()
+{
+    while (m_running.load() && !m_messageQueue.isEmpty())
+    {
+        m_messageDispatcher.dispatch(m_messageQueue.front());
+        m_messageQueue.pop();
+    }
+}
+
+void GameClient::registerMessageHandlers()
+{
+    m_messageDispatcher.registerHandler(
+        proto::MessageType::S2C_Chat,
+        [this](net::SessionId sessionId, const proto::MessagePtr& message)
+        {
+            handleMessage(sessionId, *std::static_pointer_cast<proto::S2C_Chat>(message));
+        });
+}
+
+void GameClient::handleMessage(net::SessionId sessionId, const proto::S2C_Chat& message)
+{
+    spdlog::info("[GameClient] Session {}: S2C_Chat 수신: {}", sessionId, message.content());
+    
+    // 채팅 윈도우에 서버에서 받은 메시지 추가
+    if (m_chatWindow)
+    {
+        m_chatWindow->addChatMessage("서버", message.content());
+    }
 }

@@ -1,5 +1,9 @@
 ﻿#include "ChatWindow.h"
 #include "imgui.h"
+#include <spdlog/spdlog.h>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
 
 ChatWindow::ChatWindow(FontManager& fontManager, KoreanInputManager& inputManager)
     : m_fontManager(fontManager)
@@ -7,12 +11,13 @@ ChatWindow::ChatWindow(FontManager& fontManager, KoreanInputManager& inputManage
     , m_isVisible(true)
     , m_autoScroll(true)
     , m_scrollToBottom(false)
+    , m_connected(false)  // 연결 상태 초기화 추가
     , m_usernameText("플레이어")
 {
     // 환영 메시지 추가
     addChatMessage("시스템", "채팅창에 오신 것을 환영합니다!");
     addChatMessage("시스템", "한글 입력이 완벽하게 지원됩니다.");
-    addChatMessage("시스템", "메시지를 입력하고 Enter 키를 눌러보세요.");
+    addChatMessage("시스템", "서버에 연결 중입니다...");
 }
 
 void ChatWindow::render()
@@ -22,7 +27,7 @@ void ChatWindow::render()
     m_fontManager.pushKoreanFont();
 
     ImGui::SetNextWindowSize(ImVec2(500, 400), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("채팅창 - 한글 완벽 지원", &m_isVisible))
+    if (ImGui::Begin("채팅창 - 네트워크 통신 지원", &m_isVisible))
     {
         renderToolbar();
         ImGui::Separator();
@@ -52,6 +57,9 @@ void ChatWindow::renderToolbar()
     }
 
     ImGui::SameLine();
+    renderConnectionStatus();  // 연결 상태 표시
+
+    ImGui::SameLine();
     ImGui::Checkbox("자동 스크롤", &m_autoScroll);
 
     ImGui::SameLine();
@@ -78,8 +86,18 @@ void ChatWindow::renderMessageArea()
             ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "[%s]", msg.timestamp.c_str());
             ImGui::SameLine();
 
-            // 발신자 이름 표시 (노란색)
-            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s:", msg.sender.c_str());
+            // 발신자 이름 표시 (색상으로 구분)
+            ImVec4 senderColor = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // 기본 노란색
+            if (msg.sender == "서버" || msg.sender == "Server")
+            {
+                senderColor = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); // 서버 메시지는 초록색
+            }
+            else if (msg.sender == "시스템" || msg.sender == "System")
+            {
+                senderColor = ImVec4(0.8f, 0.8f, 0.8f, 1.0f); // 시스템 메시지는 회색
+            }
+            
+            ImGui::TextColored(senderColor, "%s:", msg.sender.c_str());
             ImGui::SameLine();
 
             // 메시지 내용 표시 (흰색)
@@ -163,6 +181,26 @@ void ChatWindow::renderInputStatusIndicator()
     }
 }
 
+void ChatWindow::renderConnectionStatus()
+{
+    if (m_connected)
+    {
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "[연결됨]");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("서버에 연결되었습니다");
+        }
+    }
+    else
+    {
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "[연결 끊김]");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("서버에 연결되지 않았습니다");
+        }
+    }
+}
+
 void ChatWindow::sendChatMessage()
 {
     // 빈 메시지는 전송하지 않음
@@ -175,8 +213,23 @@ void ChatWindow::sendChatMessage()
     
     if (trimmed.empty()) return;
     
-    // 메시지를 채팅 목록에 추가
-    addChatMessage(m_usernameText, m_chatInputText);
+    // 연결 상태 확인
+    if (!m_connected)
+    {
+        addChatMessage("시스템", "서버에 연결되지 않았습니다. 메시지를 전송할 수 없습니다.");
+        m_chatInputText.clear();
+        scrollChatToBottom();
+        return;
+    }
+    
+    // 네트워크를 통해 메시지 전송 (콜백이 설정된 경우)
+    if (m_sendMessageCallback)
+    {
+        m_sendMessageCallback(m_chatInputText);
+    }
+    
+    // 내 메시지를 채팅 목록에 추가 (에코가 없는 경우를 대비)
+    addChatMessage(m_usernameText + " (나)", m_chatInputText);
     
     // 입력 텍스트 클리어
     m_chatInputText.clear();
