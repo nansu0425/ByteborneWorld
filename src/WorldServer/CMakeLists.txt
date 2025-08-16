@@ -2,6 +2,7 @@
 add_executable (WorldServer
     "Main.cpp"
     "Server.h" "Server.cpp"
+    "ChatRoom.h" "ChatRoom.cpp"
 )
 
 # Enable precompiled headers using CMake's built-in support

@@ -11,6 +11,8 @@
 #include <unordered_set>
 #include <atomic>
 
+#include "ChatRoom.h"
+
 class WorldServer
 {
 public:
@@ -34,7 +36,6 @@ private:
 
     void processMessages();
     void registerMessageHandlers();
-    void handleMessage(net::SessionId sessionId, const proto::C2S_Chat& chat);
 
 private:
     std::atomic<bool> m_running;
@@ -50,8 +51,6 @@ private:
     proto::MessageDispatcher m_messageDispatcher;
     proto::MessageSerializer m_messageSerializer;
 
-    // 채팅 권위 정보 관리
-    std::atomic<uint64_t> m_nextMessageId{1};
-    std::unordered_set<net::SessionId> m_activeSessions;          // 현재 연결 중인 세션 목록
-    std::unordered_map<net::SessionId, std::string> m_sessionNames; // 세션별 표시 이름(서버 권위)
+    // 채팅은 ChatRoom으로 위임
+    world::ChatRoom m_chatRoom{ m_sessionManager, m_messageSerializer };
 };
