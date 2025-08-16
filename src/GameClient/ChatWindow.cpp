@@ -4,6 +4,8 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
+#include <algorithm>
+#include <chrono>
 
 ChatWindow::ChatWindow(FontManager& fontManager, KoreanInputManager& inputManager)
     : m_fontManager(fontManager)
@@ -66,6 +68,7 @@ void ChatWindow::renderToolbar()
     if (ImGui::Button("채팅 지우기"))
     {
         m_chatMessages.clear();
+        m_pendingIndex.clear();
     }
 
     ImGui::SameLine();
@@ -97,10 +100,18 @@ void ChatWindow::renderMessageArea()
                 senderColor = ImVec4(0.8f, 0.8f, 0.8f, 1.0f); // 시스템 메시지는 회색
             }
             
+            // pending이면 반투명 처리
+            if (msg.pending)
+            {
+                senderColor.w = 0.6f;
+            }
+            
             ImGui::TextColored(senderColor, "%s:", msg.sender.c_str());
             ImGui::SameLine();
 
             // 메시지 내용 표시 (흰색)
+            ImVec4 textColor = ImVec4(1,1,1,1);
+            if (msg.pending) textColor.w = 0.7f;
             ImGui::TextWrapped("%s", msg.message.c_str());
         }
 
@@ -228,13 +239,9 @@ void ChatWindow::sendChatMessage()
         m_sendMessageCallback(m_chatInputText);
     }
     
-    // 내 메시지를 채팅 목록에 추가 (에코가 없는 경우를 대비)
-    addChatMessage(m_usernameText + " (나)", m_chatInputText);
-    
-    // 입력 텍스트 클리어
+    // 낙관적 UI 메시지는 GameClient에서 client_message_id를 생성한 뒤 추가한다.
+    // 여기서는 입력만 초기화하고 스크롤만 처리.
     m_chatInputText.clear();
-    
-    // 하단으로 스크롤
     scrollChatToBottom();
 }
 
@@ -245,7 +252,15 @@ void ChatWindow::addChatMessage(const std::string& sender, const std::string& me
     chatMsg.message = message;
     chatMsg.timestamp = getCurrentTimestamp();
     
+    // 로컬/시스템 메시지에도 정렬을 위해 클라 기준 ms를 기록
+    chatMsg.serverSentAtMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+
     m_chatMessages.push_back(chatMsg);
+
+    // 최신이 아래로 가도록 정렬 유지
+    sortMessagesByServerOrder();
+    scrollChatToBottom();
     
     // 최대 1000개 메시지만 보관 (메모리 절약)
     if (m_chatMessages.size() > 1000)
@@ -255,6 +270,66 @@ void ChatWindow::addChatMessage(const std::string& sender, const std::string& me
     
     // 메시지 추가 로그 (UTF-8 지원)
     spdlog::info("[Chat] {}: {}", sender, message);
+}
+
+void ChatWindow::addLocalPendingMessage(const std::string& sender, const std::string& message, uint64_t clientMessageId)
+{
+    ChatMessage chatMsg;
+    chatMsg.sender = sender;
+    chatMsg.message = message;
+    chatMsg.pending = true;
+    chatMsg.clientMessageId = clientMessageId;
+    chatMsg.timestamp = getCurrentTimestamp();
+
+    m_pendingIndex[clientMessageId] = m_chatMessages.size();
+    m_chatMessages.push_back(std::move(chatMsg));
+    scrollChatToBottom();
+}
+
+bool ChatWindow::ackPendingMessage(uint64_t clientMessageId,
+                                   const std::string& authoritativeSender,
+                                   const std::string& authoritativeContent,
+                                   uint64_t serverMessageId,
+                                   int64_t serverSentAtMs)
+{
+    auto it = m_pendingIndex.find(clientMessageId);
+    if (it == m_pendingIndex.end())
+    {
+        return false; // 매칭 실패
+    }
+
+    auto& msg = m_chatMessages[it->second];
+    msg.sender = authoritativeSender;
+    msg.message = authoritativeContent;
+    msg.pending = false;
+    msg.serverMessageId = serverMessageId;
+    msg.serverSentAtMs = serverSentAtMs;
+    msg.timestamp = formatTimestampFromMs(serverSentAtMs);
+
+    m_pendingIndex.erase(it);
+    sortMessagesByServerOrder();
+    scrollChatToBottom();
+    return true;
+}
+
+void ChatWindow::addAuthoritativeMessage(const std::string& sender,
+                                         const std::string& content,
+                                         uint64_t serverMessageId,
+                                         int64_t serverSentAtMs,
+                                         uint64_t clientMessageId)
+{
+    ChatMessage chatMsg;
+    chatMsg.sender = sender;
+    chatMsg.message = content;
+    chatMsg.pending = false;
+    chatMsg.clientMessageId = clientMessageId;
+    chatMsg.serverMessageId = serverMessageId;
+    chatMsg.serverSentAtMs = serverSentAtMs;
+    chatMsg.timestamp = formatTimestampFromMs(serverSentAtMs);
+
+    m_chatMessages.push_back(std::move(chatMsg));
+    sortMessagesByServerOrder();
+    scrollChatToBottom();
 }
 
 void ChatWindow::scrollChatToBottom()
@@ -277,4 +352,34 @@ std::string ChatWindow::getCurrentTimestamp() const
     std::ostringstream oss;
     oss << std::put_time(&tm, "%H:%M:%S");
     return oss.str();
+}
+
+std::string ChatWindow::formatTimestampFromMs(int64_t msSinceEpoch)
+{
+    std::time_t tt = static_cast<std::time_t>(msSinceEpoch / 1000);
+    std::tm tm = *std::localtime(&tt);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%H:%M:%S");
+    return oss.str();
+}
+
+void ChatWindow::sortMessagesByServerOrder()
+{
+    // 최신 메시지가 아래로 가도록(오래된 것이 먼저, 새로운 것이 나중)
+    std::stable_sort(m_chatMessages.begin(), m_chatMessages.end(), [](const ChatMessage& a, const ChatMessage& b){
+        // pending은 항상 마지막에 위치
+        if (a.pending != b.pending)
+            return b.pending; // a가 pending=false 이면 true 반환 → a 먼저
+
+        // 권위/로컬 모두 serverSentAtMs 기준 정렬(오름차순)
+        if (a.serverSentAtMs != b.serverSentAtMs)
+            return a.serverSentAtMs < b.serverSentAtMs;
+        
+        // 동시간대에는 serverMessageId로 안정적 정렬(0은 자연히 뒤로 감)
+        if (a.serverMessageId != b.serverMessageId)
+            return a.serverMessageId < b.serverMessageId;
+
+        // 마지막으로 clientMessageId로 타이 브레이크
+        return a.clientMessageId < b.clientMessageId;
+    });
 }

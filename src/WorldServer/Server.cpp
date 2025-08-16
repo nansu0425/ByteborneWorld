@@ -2,6 +2,7 @@
 #include "Network/Packet.h"
 #include "Protocol/Type.h"
 #include "Protocol/Serializer.h"
+#include <chrono>
 
 WorldServer::WorldServer()
     : m_running(false)
@@ -152,6 +153,11 @@ void WorldServer::handleServiceEvent(net::ServiceAcceptEvent& event)
 
     auto session = net::Session::createInstance(std::move(event.socket), m_sessionEventQueue);
     m_sessionManager.addSession(session);
+    m_activeSessions.insert(session->getSessionId());
+
+    // 기본 표시 이름 부여(권위 서버). 실제로는 인증/프로필 시스템에서 가져오도록 확장 가능.
+    m_sessionNames[session->getSessionId()] = std::string("플레이어") + std::to_string(static_cast<uint64_t>(session->getSessionId()));
+
     session->start();
 }
 
@@ -179,6 +185,8 @@ void WorldServer::processSessionEvents()
 void WorldServer::handleSessionEvent(net::SessionCloseEvent& event)
 {
     m_sessionManager.removeSession(event.sessionId);
+    m_activeSessions.erase(event.sessionId);
+    m_sessionNames.erase(event.sessionId);
 }
 
 void WorldServer::handleSessionEvent(net::SessionReceiveEvent& event)
@@ -225,15 +233,47 @@ void WorldServer::registerMessageHandlers()
         });
 }
 
+static inline int64_t NowMs()
+{
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
+
 void WorldServer::handleMessage(net::SessionId sessionId, const proto::C2S_Chat& message)
 {
+    // 권위적 서버: 클라이언트가 보낸 sender_name은 신뢰하지 않음.
+    const std::string senderName = [&]() -> std::string {
+        auto it = m_sessionNames.find(sessionId);
+        if (it != m_sessionNames.end()) return it->second;
+        return std::string("플레이어") + std::to_string(static_cast<uint64_t>(sessionId));
+    }();
+
     proto::S2C_Chat response;
+    response.set_sender_name(senderName);
     response.set_content(message.content());
+    response.set_client_message_id(message.client_message_id());
+    response.set_server_message_id(m_nextMessageId.fetch_add(1));
+    response.set_server_sent_at_ms(NowMs());
+    response.set_sender_session_id(static_cast<uint32_t>(sessionId));
 
     net::SendBufferChunkPtr chunk = m_messageSerializer.serializeToSendBuffer(response);
-    bool result = m_sessionManager.send(sessionId, chunk);
-    if (result == false)
+
+    // 모든 세션에 브로드캐스트. SessionManager에 broadcast가 없으면 수동 순회.
+    bool anySent = false;
+    for (const auto& sid : m_activeSessions)
     {
-        spdlog::error("[WorldServer] 세션 {}에 S2C_Chat 전송 실패", sessionId);
+        if (m_sessionManager.send(sid, chunk))
+        {
+            anySent = true;
+        }
+        else
+        {
+            spdlog::warn("[WorldServer] 세션 {}에 S2C_Chat 전송 실패", sid);
+        }
+    }
+
+    if (!anySent)
+    {
+        spdlog::warn("[WorldServer] 브로드캐스트 대상 세션이 없습니다.");
     }
 }

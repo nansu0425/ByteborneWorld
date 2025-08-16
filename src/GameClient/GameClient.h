@@ -109,4 +109,7 @@ private:
     // 연결 상태 관리
     std::atomic<bool> m_connected{false};
     net::SessionId m_serverSessionId{0};
+
+    // 낙관적 UI용 클라이언트 메시지 ID
+    std::atomic<uint64_t> m_nextClientMessageId{1};
 };

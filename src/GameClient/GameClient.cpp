@@ -1,5 +1,6 @@
 ﻿#include "GameClient.h"
 #include <spdlog/spdlog.h>
+#include <chrono>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -92,15 +93,30 @@ void GameClient::sendChatMessage(const std::string& message)
         spdlog::warn("[GameClient] 서버에 연결되지 않음. 메시지를 보낼 수 없습니다.");
         return;
     }
+
+    // 낙관적 UI를 위한 client_message_id 및 클라 보낸 시각(ms)
+    const uint64_t clientMessageId = m_nextClientMessageId.fetch_add(1);
+    const int64_t clientSentAtMs = [](){
+        using namespace std::chrono; return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    }();
+
+    // 채팅창에 즉시 임시 메시지 추가
+    if (m_chatWindow)
+    {
+        m_chatWindow->addLocalPendingMessage(m_chatWindow->getUsername() + " (나)", message, clientMessageId);
+    }
     
-    // 채팅 메시지 생성 및 전송
+    // 채팅 메시지 생성 및 전송 (프로토콜 필드 채우기)
     proto::C2S_Chat chat;
+    chat.set_sender_name(m_chatWindow ? m_chatWindow->getUsername() : ""); // 서버는 신뢰하지 않음
     chat.set_content(message);
+    chat.set_client_message_id(clientMessageId);
+    chat.set_client_sent_at_ms(clientSentAtMs);
     
     net::SendBufferChunkPtr chunk = m_messageSerializer.serializeToSendBuffer(chat);
     if (m_sessionManager.send(m_serverSessionId, chunk))
     {
-        spdlog::debug("[GameClient] 채팅 메시지 전송: {}", message);
+        spdlog::debug("[GameClient] 채팅 메시지 전송: {} (cid={})", message, clientMessageId);
     }
     else
     {
@@ -504,11 +520,29 @@ void GameClient::registerMessageHandlers()
 
 void GameClient::handleMessage(net::SessionId sessionId, const proto::S2C_Chat& message)
 {
-    spdlog::info("[GameClient] Session {}: S2C_Chat 수신: {}", sessionId, message.content());
+    spdlog::info("[GameClient] Session {}: S2C_Chat 수신: {} (sid={}, smid={}, cmid={})",
+                 sessionId, message.content(), message.sender_session_id(),
+                 message.server_message_id(), message.client_message_id());
     
-    // 채팅 윈도우에 서버에서 받은 메시지 추가
+    // 서버가 보낸 권위 정보 기반으로 UI에 표시/보정
     if (m_chatWindow)
     {
-        m_chatWindow->addChatMessage("서버", message.content());
+        // 먼저 내 pending과 매칭 시도
+        if (message.client_message_id() != 0 &&
+            m_chatWindow->ackPendingMessage(message.client_message_id(),
+                                            message.sender_name(),
+                                            message.content(),
+                                            message.server_message_id(),
+                                            message.server_sent_at_ms()))
+        {
+            return; // 보정 완료
+        }
+
+        // 매칭 실패 → 다른 유저 또는 이전 세션의 메시지. 신규 추가
+        m_chatWindow->addAuthoritativeMessage(message.sender_name(),
+                                              message.content(),
+                                              message.server_message_id(),
+                                              message.server_sent_at_ms(),
+                                              message.client_message_id());
     }
 }

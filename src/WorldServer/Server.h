@@ -7,6 +7,9 @@
 #include "Network/Event.h"
 #include "Protocol/Dispatcher.h"
 #include "Protocol/Serializer.h"
+#include <unordered_map>
+#include <unordered_set>
+#include <atomic>
 
 class WorldServer
 {
@@ -46,4 +49,9 @@ private:
     proto::MessageQueue m_messageQueue;
     proto::MessageDispatcher m_messageDispatcher;
     proto::MessageSerializer m_messageSerializer;
+
+    // 채팅 권위 정보 관리
+    std::atomic<uint64_t> m_nextMessageId{1};
+    std::unordered_set<net::SessionId> m_activeSessions;          // 현재 연결 중인 세션 목록
+    std::unordered_map<net::SessionId, std::string> m_sessionNames; // 세션별 표시 이름(서버 권위)
 };
