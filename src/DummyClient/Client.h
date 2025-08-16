@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <thread>
+#include <atomic>
 #include "Core/Timer.h"
 #include "Network/Session.h"
 #include "Network/Service.h"
@@ -46,4 +47,7 @@ private:
     proto::MessageQueue m_messageQueue;
     proto::MessageDispatcher m_messageDispatcher;
     proto::MessageSerializer m_messageSerializer;
+
+    // 낙관적 UI 테스트를 위한 더미 client_message_id 카운터
+    std::atomic<uint64_t> m_nextClientMessageId{1};
 };

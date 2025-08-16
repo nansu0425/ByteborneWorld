@@ -1,6 +1,7 @@
 ﻿#include "Client.h"
 #include "Network/Packet.h"
 #include "Protocol/Type.h"
+#include <chrono>
 
 DummyClient::DummyClient()
     : m_running(false)
@@ -153,26 +154,34 @@ void DummyClient::handleServiceEvent(net::ServiceConnectEvent& event)
     m_sessionManager.addSession(session);
     session->start();
 
+    // 테스트: 주기적으로 C2S_Chat 전송(권위 필드 포함)
     m_timer.scheduleRepeating(
         std::chrono::milliseconds(0),
-        std::chrono::milliseconds(250),
+        std::chrono::milliseconds(500),
         [this, sessionId = session->getSessionId()]()
         {
-            if (m_running.load() == false)
-            {
+            if (!m_running.load())
                 return false;
-            }
+
+            const uint64_t clientMessageId = m_nextClientMessageId.fetch_add(1);
+            const int64_t clientSentAtMs = [](){
+                using namespace std::chrono; return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+            }();
 
             proto::C2S_Chat chat;
+            chat.set_sender_name("더미"); // 서버는 신뢰하지 않음
             chat.set_content("Hello, Byteborne World!");
+            chat.set_client_message_id(clientMessageId);
+            chat.set_client_sent_at_ms(clientSentAtMs);
 
             net::SendBufferChunkPtr chunk =  m_messageSerializer.serializeToSendBuffer(chat);
             if (m_sessionManager.send(sessionId, chunk) == false)
             {
+                spdlog::warn("[DummyClient] 세션 {} 전송 실패", sessionId);
                 return false;
             }
 
-            return true;
+            return true; // continue scheduling
         }
     );
 }
@@ -249,5 +258,12 @@ void DummyClient::registerMessageHandlers()
 
 void DummyClient::handleMessage(net::SessionId sessionId, const proto::S2C_Chat& message)
 {
-    spdlog::info("[DummyClient] Session {}: S2C_Chat 수신: {}", sessionId, message.content());
+    spdlog::info(
+        "[DummyClient] Session {}: S2C_Chat 수신: sender='{}' content='{}' smid={} cmid={} at={}",
+        sessionId,
+        message.sender_name(),
+        message.content(),
+        message.server_message_id(),
+        message.client_message_id(),
+        message.server_sent_at_ms());
 }
